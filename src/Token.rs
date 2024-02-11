@@ -4,8 +4,29 @@
 
 use crate::Position::Position;
 
+pub enum TokenKind {
+    IDENT,
+	OPERATOR,
+
+    INT(IntFormat),
+    FLOAT,
+    STRING,
+    CHAR,
+
+	DELIMITER,
+
+    COMMENT,
+}
+
+pub enum IntFormat {
+    BIN,
+    OCT,
+    DEC,
+    HEX,
+}
+
 pub struct Token {
-	pub Pos: Position,
-	pub Kind: i8,
-	pub Literal: String,
+    pub Pos: Position,
+    pub Kind: TokenKind,
+    pub Literal: Vec<char>,
 }

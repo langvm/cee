@@ -1,0 +1,40 @@
+// Copyright 2024 LangVM Project
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0
+// that can be found in the LICENSE file and https://mozilla.org/MPL/2.0/.
+
+use crate::BufferScanner::BufferScanner;
+use crate::Position::Position;
+use crate::Scanner::Scanner;
+
+/*
+
+package main
+var i = len("String for testing."+"")
+i++
+if i != 127 | 0b01 && i == '1' {
+	println("String for testing.\nChinese letter: \u554a")
+}
+*/
+
+#[test]
+fn TestScanner() {
+	let src = r#"package main	var i = len("String for testing."+"")	i++	if i != 127 | 0b01 && i == '1' {		println("String for testing.\nChinese letter: \u554a")	}"#;
+
+	let mut s = Scanner {
+		BufferScanner: BufferScanner {
+			Pos: Position { Offset: 0, Line: 0, Column: 0 },
+			Buffer: src.chars().collect(),
+		},
+		Delimiters: vec!['(', ')', '[', ']', '{', '}'],
+		Whitespaces: vec![' ', '\r', '\t'],
+	};
+	loop {
+		match s.Scan() {
+			Ok(tok) => { println!("{}", tok.Literal.iter().collect::<String>()) }
+			Err(err) => {
+				println!("{}", err.Error());
+				break;
+			}
+		};
+	}
+}

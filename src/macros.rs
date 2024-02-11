@@ -4,12 +4,5 @@
 
 #[macro_export]
 macro_rules! string_vec {
-    ($e: expr) => { String::from_iter($e)};
-}
-
-#[macro_export]
-macro_rules! atoi {
-    ($t: ty, $str: expr) => {
-		($str).parse::<$t>()
-	};
+    ($e: expr) => { String::from_iter($e) };
 }

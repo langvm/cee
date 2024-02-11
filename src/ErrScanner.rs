@@ -10,7 +10,7 @@ pub enum Error {
 }
 
 impl Error {
-	fn Error(&self) -> String {
+	pub fn Error(self) -> String {
 		match self {
 			Error::EOF(err) => { err.Error() }
 			Error::Format(err) => { err.Error() }

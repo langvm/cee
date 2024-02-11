@@ -4,11 +4,13 @@
 
 #![allow(nonstandard_style)]
 
+mod macros;
 pub mod BufferScanner;
 pub mod Scanner;
 pub mod Position;
-pub mod errors;
 mod Token;
 mod PosRange;
-mod Scanner_errors;
-mod macros;
+mod TestScanner;
+mod ErrScanner;
+mod Parser;
+mod ErrParser;
