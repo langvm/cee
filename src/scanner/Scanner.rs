@@ -4,12 +4,33 @@
 
 use std::char::from_u32;
 
-use crate::BufferScanner::{BufferScanner, EOFError};
-use crate::ErrScanner::{Error, FormatError};
-use crate::Position::Position;
-use crate::PosRange::PosRange;
+use crate::scanner::BasicToken::{BasicToken, BasicTokenKind, IntFormat};
+use crate::scanner::BufferScanner::{BufferScanner, EOFError};
+use crate::scanner::Position::Position;
+use crate::scanner::PosRange::PosRange;
 use crate::string_vec;
-use crate::Token::{IntFormat, Token, TokenKind};
+
+pub enum Error {
+    EOFError(EOFError),
+    FormatError(FormatError),
+}
+
+impl Error {
+    pub fn Error(self) -> String {
+        match self {
+            Error::EOFError(err) => { err.Error() }
+            Error::FormatError(err) => { err.Error() }
+        }
+    }
+}
+
+pub struct FormatError {
+    pub PosRange: PosRange,
+}
+
+impl FormatError {
+    pub fn Error(&self) -> String { format!("{}: format error", self.PosRange.to_string()) }
+}
 
 pub struct Scanner {
     pub BufferScanner: BufferScanner,
@@ -28,21 +49,21 @@ impl Scanner {
     pub fn GetChar(&self) -> Result<char, Error> {
         match self.BufferScanner.GetChar() {
             Ok(ch) => { Ok(ch) }
-            Err(_) => { Err(Error::EOF(EOFError { Pos: self.GetPos() })) }
+            Err(_) => { Err(Error::EOFError(EOFError { Pos: self.GetPos() })) }
         }
     }
 
     pub fn Move(&mut self) -> Result<char, Error> {
         match self.BufferScanner.Move() {
             Ok(ch) => { Ok(ch) }
-            Err(_) => { Err(Error::EOF(EOFError { Pos: self.GetPos() })) }
+            Err(_) => { Err(Error::EOFError(EOFError { Pos: self.GetPos() })) }
         }
     }
 
     pub fn GotoNextLine(&mut self) -> Result<(), Error> {
         match self.BufferScanner.GotoNextLine() {
             Ok(_) => { Ok(()) }
-            Err(err) => { Err(Error::EOF(err)) }
+            Err(err) => { Err(Error::EOFError(err)) }
         }
     }
 
@@ -56,19 +77,19 @@ impl Scanner {
         Ok(())
     }
 
-    pub fn ScanLineComment(&mut self) -> Result<Token, Error> {
+    pub fn ScanLineComment(&mut self) -> Result<BasicToken, Error> {
         let begin = self.GetPos();
 
         self.GotoNextLine()?;
 
-        Ok(Token {
-            Pos: begin.clone(),
-            Kind: TokenKind::COMMENT,
+        Ok(BasicToken {
+            Pos: PosRange { Begin: begin.clone(), End: self.GetPos() },
+            Kind: BasicTokenKind::Comment,
             Literal: from_to!(begin, self),
         })
     }
 
-    pub fn ScanQuotedComment(&mut self) -> Result<Token, Error> {
+    pub fn ScanQuotedComment(&mut self) -> Result<BasicToken, Error> {
         let begin = self.GetPos();
 
         loop {
@@ -80,28 +101,28 @@ impl Scanner {
         }
 
 
-        Ok(Token {
-            Pos: begin.clone(),
-            Kind: TokenKind::COMMENT,
+        Ok(BasicToken {
+            Pos: PosRange { Begin: begin.clone(), End: self.GetPos() },
+            Kind: BasicTokenKind::Comment,
             Literal: from_to!(begin, self),
         })
     }
 
-    pub fn ScanComment(&mut self) -> Result<Token, Error> {
+    pub fn ScanComment(&mut self) -> Result<BasicToken, Error> {
         let begin = self.GetPos();
 
         return match self.Move()? {
             '/' => { self.ScanLineComment() }
             '*' => { self.ScanQuotedComment() }
             _ => {
-                return Err(Error::Format(FormatError {
+                return Err(Error::FormatError(FormatError {
                     PosRange: PosRange { Begin: begin, End: self.GetPos() },
                 }));
             }
         };
     }
 
-    pub fn ScanIdent(&mut self) -> Result<Token, Error> {
+    pub fn ScanIdent(&mut self) -> Result<BasicToken, Error> {
         let begin = self.GetPos();
 
         loop {
@@ -113,14 +134,14 @@ impl Scanner {
             }
         }
 
-        Ok(Token {
-            Pos: begin.clone(),
-            Kind: TokenKind::IDENT,
+        Ok(BasicToken {
+            Pos: PosRange { Begin: begin.clone(), End: self.GetPos() },
+            Kind: BasicTokenKind::Ident,
             Literal: from_to!(begin, self),
         })
     }
 
-    pub fn ScanHex(&mut self) -> Result<Token, Error> {
+    pub fn ScanHex(&mut self) -> Result<BasicToken, Error> {
         let begin = self.GetPos();
 
         loop {
@@ -132,14 +153,14 @@ impl Scanner {
             }
         }
 
-        Ok(Token {
-            Pos: begin.clone(),
-            Kind: TokenKind::INT(IntFormat::HEX),
+        Ok(BasicToken {
+            Pos: PosRange { Begin: begin.clone(), End: self.GetPos() },
+            Kind: BasicTokenKind::Int(IntFormat::HEX),
             Literal: from_to!(begin, self),
         })
     }
 
-    pub fn ScanDec(&mut self) -> Result<Token, Error> {
+    pub fn ScanDec(&mut self) -> Result<BasicToken, Error> {
         let begin = self.GetPos();
 
         loop {
@@ -152,14 +173,14 @@ impl Scanner {
         }
 
 
-        Ok(Token {
-            Pos: begin.clone(),
-            Kind: TokenKind::INT(IntFormat::DEC),
+        Ok(BasicToken {
+            Pos: PosRange { Begin: begin.clone(), End: self.GetPos() },
+            Kind: BasicTokenKind::Int(IntFormat::DEC),
             Literal: from_to!(begin, self),
         })
     }
 
-    pub fn ScanOct(&mut self) -> Result<Token, Error> {
+    pub fn ScanOct(&mut self) -> Result<BasicToken, Error> {
         let begin = self.GetPos();
 
         loop {
@@ -172,14 +193,14 @@ impl Scanner {
         }
 
 
-        Ok(Token {
-            Pos: begin.clone(),
-            Kind: TokenKind::INT(IntFormat::OCT),
+        Ok(BasicToken {
+            Pos: PosRange { Begin: begin.clone(), End: self.GetPos() },
+            Kind: BasicTokenKind::Int(IntFormat::OCT),
             Literal: from_to!(begin, self),
         })
     }
 
-    pub fn ScanBin(&mut self) -> Result<Token, Error> {
+    pub fn ScanBin(&mut self) -> Result<BasicToken, Error> {
         let begin = self.GetPos();
 
         loop {
@@ -192,14 +213,14 @@ impl Scanner {
         }
 
 
-        Ok(Token {
-            Pos: begin.clone(),
-            Kind: TokenKind::INT(IntFormat::BIN),
+        Ok(BasicToken {
+            Pos: PosRange { Begin: begin.clone(), End: self.GetPos() },
+            Kind: BasicTokenKind::Int(IntFormat::BIN),
             Literal: from_to!(begin, self),
         })
     }
 
-    pub fn ScanDigit(&mut self) -> Result<Token, Error> {
+    pub fn ScanDigit(&mut self) -> Result<BasicToken, Error> {
         let begin = self.GetPos();
 
         match self.Move()? {
@@ -209,7 +230,7 @@ impl Scanner {
                     'o' => { self.ScanOct() }
                     'b' => { self.ScanBin() }
                     _ => {
-                        return Err(Error::Format(FormatError {
+                        return Err(Error::FormatError(FormatError {
                             PosRange: PosRange {
                                 Begin: begin,
                                 End: self.GetPos(),
@@ -237,7 +258,7 @@ impl Scanner {
             Ok(ch) => {
                 match from_u32(ch) {
                     None => {
-                        return Err(Error::Format(FormatError {
+                        return Err(Error::FormatError(FormatError {
                             PosRange: PosRange { Begin: begin, End: self.GetPos() }
                         }));
                     }
@@ -246,7 +267,7 @@ impl Scanner {
             }
             Err(err) => {
                 println!("{}", err.to_string());
-                return Err(Error::Format(FormatError {
+                return Err(Error::FormatError(FormatError {
                     PosRange: PosRange { Begin: begin, End: self.GetPos() },
                 }));
             }
@@ -276,12 +297,12 @@ impl Scanner {
             }
             _ if ch == quote => { quote }
             _ => {
-                return Err(Error::Format(FormatError { PosRange: PosRange { Begin: begin, End: self.GetPos() } }));
+                return Err(Error::FormatError(FormatError { PosRange: PosRange { Begin: begin, End: self.GetPos() } }));
             }
         })
     }
 
-    pub fn ScanString(&mut self, quote: char) -> Result<Token, Error> {
+    pub fn ScanString(&mut self, quote: char) -> Result<BasicToken, Error> {
         let begin = self.GetPos();
 
         self.Move()?; // skip quote
@@ -302,64 +323,51 @@ impl Scanner {
             }
         }
 
-        Ok(Token {
-            Pos: begin,
-            Kind: TokenKind::STRING,
+        Ok(BasicToken {
+            Pos: PosRange { Begin: begin, End: self.GetPos() },
+            Kind: BasicTokenKind::String,
             Literal: seq,
         })
     }
 
-    pub fn ScanOperator(&mut self) -> Result<Token, Error> {
+    pub fn ScanOperator(&mut self) -> Result<BasicToken, Error> {
         let begin = self.GetPos();
 
         loop {
-            let ch = self.GetChar()?;
-            if !ch.is_ascii_punctuation() || self.Delimiters.contains(&ch) {
-                break;
+            match self.GetChar()? {
+                '"' => { break; }
+                '\'' => { break; }
+                ch if !ch.is_ascii_punctuation() => { break; }
+                ch if self.Delimiters.contains(&ch) => { break; }
+                _ => { self.Move()?; }
             }
-            self.Move()?;
         }
 
-
-        Ok(Token {
-            Pos: begin.clone(),
-            Kind: TokenKind::OPERATOR,
+        Ok(BasicToken {
+            Pos: PosRange { Begin: begin.clone(), End: self.GetPos() },
+            Kind: BasicTokenKind::Operator,
             Literal: from_to!(begin, self),
         })
     }
 
-    pub fn Scan(&mut self) -> Result<Token, Error> {
-        let begin = self.GetPos();
-
+    pub fn Scan(&mut self) -> Result<BasicToken, Error> {
         self.SkipWhitespaces()?;
 
-        let ch = self.GetChar()?;
+        let begin = self.GetPos();
 
-
-        if ch.is_alphabetic() {
-            self.ScanIdent()
-        } else if ch.is_numeric() {
-            return Ok(self.ScanDigit()?);
-        } else if ch.is_ascii_punctuation() {
-            if self.Delimiters.contains(&ch) {
-                Ok(Token{
-                    Pos: begin,
-                    Kind: TokenKind::DELIMITER,
-                    Literal: vec![self.Move()?],
-                })
-            } else {
-                match ch {
-                    '"' => { self.ScanString('"') }
-                    _ => { self.ScanOperator() }
-                }
-            }
-        } else {
-            match ch {
-                '/' => { self.ScanComment() }
-                _ => { return Err(Error::EOF(EOFError { Pos: self.GetPos() })); }
-                // TODO
-            }
-            // TODO
+        match self.GetChar()? {
+            ch if ch.is_alphabetic() => { self.ScanIdent() }
+            ch if ch.is_numeric() => { self.ScanDigit() }
+            ch if self.Delimiters.contains(&ch) => { Ok(BasicToken {
+                Pos: PosRange {Begin: begin, End: self.GetPos()},
+                Kind: BasicTokenKind::Delimiter,
+                Literal: vec![self.Move()?],
+            })}
+            '"' => { self.ScanString('"') }
+            '\'' => { self.ScanString('\'') } // TODO
+            '/' => { self.ScanComment() }
+            ch if ch.is_ascii_punctuation() => { self.ScanOperator() }
+            _ => { Err(Error::EOFError(EOFError { Pos: self.GetPos() })) }
         }
     }
 }

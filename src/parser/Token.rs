@@ -2,10 +2,11 @@
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0
 // that can be found in the LICENSE file and https://mozilla.org/MPL/2.0/.
 
+use crate::scanner::BasicToken::IntFormat;
 use crate::scanner::PosRange::PosRange;
 
 #[derive(Clone)]
-pub enum BasicTokenKind {
+pub enum TokenKind {
     Ident,
     Operator,
 
@@ -19,23 +20,15 @@ pub enum BasicTokenKind {
     Comment,
 }
 
-#[derive(Clone)]
-pub enum IntFormat {
-    BIN = 2,
-    OCT = 8,
-    DEC = 10,
-    HEX = 16,
-}
-
-pub struct BasicToken {
+pub struct Token {
     pub Pos: PosRange,
-    pub Kind: BasicTokenKind,
+    pub Kind: TokenKind,
     pub Literal: Vec<char>,
 }
 
-impl BasicToken {
-    pub fn clone(&self) -> BasicToken {
-        BasicToken {
+impl Token {
+    pub fn clone(&self) -> Token {
+        Token {
             Pos: self.Pos.clone(),
             Kind: self.Kind.clone(),
             Literal: self.Literal.clone(),

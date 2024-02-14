@@ -2,7 +2,7 @@
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0
 // that can be found in the LICENSE file and https://mozilla.org/MPL/2.0/.
 
-use crate::Position::Position;
+use crate::scanner::Position::Position;
 
 pub struct BufferScanner {
 	pub Pos: Position,
@@ -14,7 +14,7 @@ pub struct EOFError {
 }
 
 impl EOFError {
-	pub fn Error(&self) -> String { format!("{}: end of file", self.Pos.ToString()) }
+	pub fn Error(&self) -> String { format!("{}: end of file", self.Pos.to_string()) }
 }
 
 impl BufferScanner {
