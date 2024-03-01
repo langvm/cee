@@ -3,15 +3,40 @@
 // that can be found in the LICENSE file and https://mozilla.org/MPL/2.0/.
 
 use std::fmt::{Display, Formatter};
+
+use crate::{def_ast, def_node};
 use crate::parser::Token::{Token, TokenKind};
 use crate::scanner::PosRange::PosRange;
 
 pub enum Node {
     None,
-    Token(TokenKind),
-    Ident,
+    Token(Token),
+    TokenKind(TokenKind),
+    Ident(Ident),
     Expr(Expr),
     Type(Type),
+}
+
+def_node! {
+    Type {
+        FuncType,
+        StructType,
+        TraitType,
+    },
+
+    Expr {
+        CallExpr,
+        UnwrapExpr,
+    },
+
+    Decl {
+        FuncDecl,
+    },
+
+    Stmt {
+        StmtBlock,
+        Expr,
+    }
 }
 
 impl Display for Node {
@@ -20,96 +45,70 @@ impl Display for Node {
     }
 }
 
-pub struct Ident {
-    pub Pos: PosRange,
-    pub Token: Token,
-}
+def_ast! {
+    Ident  {
+        Token: Token,
+    },
 
-pub struct Field {
-    pub Pos: PosRange,
-    pub Name: Ident,
-    pub Type: Type,
-}
+    // Type
 
-pub struct FieldList {
-    pub Pos: PosRange,
-    pub FieldList: Vec<Field>,
-}
+    FuncType {
+        Params: FieldList,
+    },
 
-pub enum Type {
-    None,
-    Func(Box<FuncType>),
-    Struct(Box<StructType>),
-    Trait(Box<TraitType>),
-}
+    StructType {
+        Name: Ident,
+        FieldList: FieldList,
+    },
 
-pub struct FuncType {
-    pub Pos: PosRange,
-}
+    TraitType {
+        Name: Ident,
+    },
 
-pub struct StructType {
-    pub Pos: PosRange,
-    pub Name: Ident,
-    pub FieldList: FieldList,
-}
+    // Expression
 
-pub struct TraitType {
-    pub Pos: PosRange,
-    pub Name: Ident,
-}
+    ExprList {
+        ExprList: Vec<Expr>,
+    },
 
-pub enum Expr {
-    None,
-    Call(Box<CallExpr>),
-    Unwrap(Box<UnwrapExpr>),
-}
+    CallExpr {
+        Callee: Expr,
+        Params: ExprList,
+    },
 
-pub struct ExprList{
-    pub Pos: PosRange,
-    pub ExprList: Vec<Expr>,
-}
+    UnwrapExpr {
+        Expr: Expr,
+    },
 
-pub struct CallExpr {
-    pub Pos: PosRange,
-    pub Callee: Expr,
-    pub Params: ExprList,
-}
+    // Declaration
 
-pub struct UnwrapExpr {
-    pub Pos: PosRange,
-    pub Expr: Expr,
-}
+    Field  {
+        Name: Ident,
+        Type: Type,
+    },
 
-pub enum Decl {
-    None,
-    Func(Box<FuncDecl>),
-}
+    FieldList  {
+        FieldList: Vec<Field>,
+    },
 
-pub struct ImportDecl {
-    pub Pos: PosRange,
-    pub Alias: Ident,
-    pub Canonical: Token,
-}
+    ImportDecl {
+        Alias: Ident,
+        Canonical: Token,
+    },
 
-pub struct FuncDecl {
-    pub Pos: PosRange,
-    pub Name: Ident,
-    pub Type: FuncType,
-}
+    FuncDecl {
+        Name: Ident,
+        Type: FuncType,
+    },
 
-pub enum Stmt {
-    None,
-    StmtBlock(StmtBlock),
-    Expr(Expr),
-}
+    // Statement
 
-pub struct StmtList {
-    pub Pos: PosRange,
-    pub StmtList: Vec<Stmt>,
-}
+    StmtList {
+        StmtList: Vec<Stmt>,
+    },
 
-pub struct StmtBlock {
-    pub Pos: PosRange,
-    pub StmtList: StmtList,
-    pub Expr: Expr,
+    StmtBlock {
+        StmtList: StmtList,
+        Expr: Expr,
+    }
 }

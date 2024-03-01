@@ -6,9 +6,10 @@ use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Formatter;
 
+use crate::{cmp_enum_tag, def_rule};
 use crate::parser::AST::{Field, FieldList, FuncDecl, FuncType, Ident, Node, Stmt, StmtBlock, StructType, TraitType, Type};
+use crate::parser::Parser::ParserError::UnexpectedNodeError;
 use crate::parser::Token::{KeywordLookup, Token, TokenKind};
-use crate::parser::Token::TokenKind::{RPAREN, SEMICOLON};
 use crate::scanner::BasicToken::BasicTokenKind;
 use crate::scanner::Position::Position;
 use crate::scanner::PosRange::PosRange;
@@ -35,6 +36,8 @@ pub struct Parser {
 
     pub ReachedEOF: bool,
     pub Token: Token,
+
+    pub CompleteSemicolon: bool,
 }
 
 pub fn NewParser(buffer: Vec<char>) -> Parser {
@@ -44,13 +47,14 @@ pub fn NewParser(buffer: Vec<char>) -> Parser {
             Delimiters: vec!['(', ')', '[', ']', '{', '}', ',', ';', '/'],
             Whitespaces: vec![' ', '\t', '\r'],
         },
+        KeywordLookup: KeywordLookup(),
         ReachedEOF: false,
         Token: Token {
             Pos: PosRange { Begin: Position { Offset: 0, Line: 0, Column: 0 }, End: Position { Offset: 0, Line: 0, Column: 0 } },
             Kind: TokenKind::None,
             Literal: vec![],
         },
-        KeywordLookup: KeywordLookup(),
+        CompleteSemicolon: false,
     }
 }
 
@@ -100,10 +104,9 @@ impl Parser {
     }
 
     pub fn MatchTerm(&mut self, term: TokenKind) -> Result<(), ParserError> {
-        let token = self.Token.clone();
-
-        match token.Kind {
-            term => { Err(ParserError::UnexpectedNodeError(UnexpectedNodeError { Want: Node::Token(term), Have: Node::Token(token.Kind) })) }
+        cmp_enum_tag! {
+            &self.Token.Kind,
+            &term => { Err(ParserError::UnexpectedNodeError(UnexpectedNodeError { Want: Node::TokenKind(term), Have: Node::Token(self.Token.clone()) })) };
             _ => {
                 self.Scan()?;
                 Ok(())
@@ -120,21 +123,18 @@ impl Parser {
                 Ok(Ident { Pos: token.Pos, Token: token.clone() })
             }
             _ => {
-                Err(ParserError::UnexpectedNodeError(UnexpectedNodeError { Want: Node::Ident, Have: Node::Token(token.Kind) }))
+                Err(ParserError::UnexpectedNodeError(UnexpectedNodeError { Want: Node::TokenKind(TokenKind::Ident), Have: Node::Token(self.Token.clone()) }))
             }
         }
     }
 
     pub fn ExpectField(&mut self) -> Result<Field, ParserError> {
-        let begin = self.GetPos();
-
-        let name = self.ExpectIdent()?;
-
-        let typ = self.ExpectType()?;
-
-        self.MatchTerm(TokenKind::SEMICOLON)?;
-
-        Ok(Field { Pos: begin_end!(begin, self), Name: name, Type: typ })
+        def_rule! {
+            self,
+            Field,
+            Name: ExpectIdent,
+            Type: ExpectType;
+        }
     }
 
     pub fn ExpectFieldList(&mut self, delimiter: TokenKind, term: TokenKind) -> Result<FieldList, ParserError> {
@@ -143,22 +143,17 @@ impl Parser {
         let mut fieldList: Vec<Field> = vec![];
 
         loop {
-            match self.Token.Kind { // TODO
-                term => { break; }
+            cmp_enum_tag! {
+                &self.Token.Kind,
+                &delimiter => {
+                    self.Scan()?;
+                },
+                &term => { break; };
                 _ => {
-                    fieldList.push(self.ExpectField()?);
-                    match self.Token.Kind {
-                        delimiter => { self.Scan()?; }
-                        term => {
-                            break;
-                        }
-                        _ => {
-                            return Err(ParserError::UnexpectedNodeError(UnexpectedNodeError {
-                                Want: Node::Token(term),
-                                Have: Node::Token(self.Token.Kind),
-                            }));
-                        }
-                    }
+                    return Err(ParserError::UnexpectedNodeError(UnexpectedNodeError{
+                        Want: Node::TokenKind(term),
+                        Have: Node::Token(self.Token.clone()),
+                    }))
                 }
             }
         }
@@ -170,8 +165,8 @@ impl Parser {
 
     pub fn ExpectType(&mut self) -> Result<Type, ParserError> {
         match self.Token.Kind {
-            TokenKind::STRUCT => { Ok(Type::Struct(Box::new(self.ExpectStructType()?))) }
-            TokenKind::TRAIT => { Ok(Type::Trait(Box::new(self.ExpectTraitType()?))) }
+            TokenKind::STRUCT => { Ok(Type::StructType(Box::new(self.ExpectStructType()?))) }
+            TokenKind::TRAIT => { Ok(Type::TraitType(Box::new(self.ExpectTraitType()?))) }
             _ => {
                 Err(ParserError::UnexpectedNodeError(UnexpectedNodeError { Want: todo!(), Have: todo!() }))
             }
@@ -191,10 +186,10 @@ impl Parser {
                 self.Scan()?;
                 results
             }
-            _ => {  self.ExpectFieldList(TokenKind::None, TokenKind::None)? }
+            _ => { self.ExpectFieldList(TokenKind::None, TokenKind::None)? }
         };
 
-        Ok(FuncType{ Pos: begin_end!(begin, self) })
+        Ok(FuncType { Pos: begin_end!(begin, self) })
     }
 
     pub fn ExpectStructType(&mut self) -> Result<StructType, ParserError> {
@@ -224,19 +219,12 @@ impl Parser {
     }
 
     pub fn ExpectFuncDecl(&mut self) -> Result<FuncDecl, ParserError> {
-        let begin = self.GetPos();
-
-        let name = self.ExpectIdent()?;
-
-        let typ = self.ExpetFuncType()?;
-
-        let block = self.ExpectStmtBlock()?;
-
-        Ok(FuncDecl {
-            Pos: begin_end!(begin, self),
-            Name: name,
-            Type:,
-        })
+        def_rule! {
+            self,
+            FuncDecl,
+            Name: ExpectIdent,
+            Type: ExpectFuncType,
+        }
     }
 
     pub fn ExpectStmt(&mut self) -> Result<Stmt, ParserError> {
