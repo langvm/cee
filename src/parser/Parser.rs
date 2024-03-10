@@ -6,14 +6,13 @@ use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Formatter;
 
-use crate::{cmp_enum_tag, def_rule};
-use crate::parser::AST::{Field, FieldList, FuncDecl, FuncType, Ident, Node, Stmt, StmtBlock, StructType, TraitType, Type};
-use crate::parser::Parser::ParserError::UnexpectedNodeError;
+use crate::parser::AST::{Expr, Field, FieldList, FuncDecl, FuncType, Ident, ImportDecl, Node, Stmt, StmtBlock, StructType, TraitType, Type};
 use crate::parser::Token::{KeywordLookup, Token, TokenKind};
 use crate::scanner::BasicToken::BasicTokenKind;
 use crate::scanner::Position::Position;
 use crate::scanner::PosRange::PosRange;
 use crate::scanner::Scanner::{NewBufferScanner, Scanner, ScannerError};
+use crate::tag_matches;
 
 pub enum ParserError {
     ScannerError(ScannerError),
@@ -59,9 +58,30 @@ pub fn NewParser(buffer: Vec<char>) -> Parser {
 }
 
 macro_rules! begin_end {
-    ($e: expr, $s: expr) => {
-        PosRange{ Begin: $e, End: $s.GetPos().clone() }
+    ($self: expr, $begin: expr) => {
+        PosRange{ Begin: $begin, End: $self.GetPos() }
     };
+}
+
+macro_rules! parse_list {
+    ($self: expr, $unit: ty, $parser: ident, $delimiter: expr, $term: expr) => { if true {
+        let mut list: Vec<$unit> = vec![];
+        loop {
+            list.push($self.$parser()?);
+            match &$self.Token.Kind {
+                it if tag_matches!(it, &$delimiter) => {
+                    $self.Scan()?;
+                    match &$self.Token.Kind {
+                        it if tag_matches!(it, &$term) => { break; }
+                        _ => {}
+                    }
+                }
+                it if tag_matches!(it, &$term) => { break; }
+                _ => {}
+            }
+        }
+        list
+    } else { panic!() }};
 }
 
 impl Parser {
@@ -103,13 +123,13 @@ impl Parser {
         Ok(())
     }
 
-    pub fn MatchTerm(&mut self, term: TokenKind) -> Result<(), ParserError> {
-        cmp_enum_tag! {
-            &self.Token.Kind,
-            &term => { Err(ParserError::UnexpectedNodeError(UnexpectedNodeError { Want: Node::TokenKind(term), Have: Node::Token(self.Token.clone()) })) };
+    pub fn MatchTerm(&mut self, term: TokenKind) -> Result<Token, ParserError> {
+        let token = self.Token.clone();
+        match &token.Kind {
+            it if tag_matches!(it, &term) => { Err(ParserError::UnexpectedNodeError(UnexpectedNodeError { Want: Node::TokenKind(term), Have: Node::Token(self.Token.clone()) })) }
             _ => {
                 self.Scan()?;
-                Ok(())
+                Ok(token)
             }
         }
     }
@@ -118,7 +138,7 @@ impl Parser {
         let token = self.Token.clone();
 
         match token.Kind {
-            Ident => {
+            TokenKind::Ident => {
                 self.Scan()?;
                 Ok(Ident { Pos: token.Pos, Token: token.clone() })
             }
@@ -129,38 +149,22 @@ impl Parser {
     }
 
     pub fn ExpectField(&mut self) -> Result<Field, ParserError> {
-        def_rule! {
-            self,
-            Field,
-            Name: ExpectIdent,
-            Type: ExpectType;
-        }
+        let begin = self.GetPos();
+
+        Ok(Field {
+            Name: self.ExpectIdent()?,
+            Type: self.ExpectType()?,
+            Pos: begin_end!(self, begin),
+        })
     }
 
     pub fn ExpectFieldList(&mut self, delimiter: TokenKind, term: TokenKind) -> Result<FieldList, ParserError> {
         let begin = self.GetPos();
 
-        let mut fieldList: Vec<Field> = vec![];
-
-        loop {
-            cmp_enum_tag! {
-                &self.Token.Kind,
-                &delimiter => {
-                    self.Scan()?;
-                },
-                &term => { break; };
-                _ => {
-                    return Err(ParserError::UnexpectedNodeError(UnexpectedNodeError{
-                        Want: Node::TokenKind(term),
-                        Have: Node::Token(self.Token.clone()),
-                    }))
-                }
-            }
-        }
-
-        self.Scan()?;
-
-        Ok(FieldList { Pos: begin_end!(begin, self), FieldList: fieldList })
+        Ok(FieldList {
+            FieldList: parse_list!(self, Field, ExpectField, delimiter, term),
+            Pos: begin_end!(self, begin),
+        })
     }
 
     pub fn ExpectType(&mut self) -> Result<Type, ParserError> {
@@ -180,16 +184,22 @@ impl Parser {
 
         let params = self.ExpectFieldList(TokenKind::COMMA, TokenKind::RPAREN)?;
 
-        let results = match self.Token.Kind {
-            TokenKind::LPAREN => {
-                let results = self.ExpectFieldList(TokenKind::COMMA, TokenKind::RPAREN)?;
-                self.Scan()?;
-                results
+        match self.Token.Kind {
+            TokenKind::PASS => {
+                Ok(FuncType {
+                    Params: params,
+                    Result: self.ExpectType()?,
+                    Pos: begin_end!(self, begin),
+                })
             }
-            _ => { self.ExpectFieldList(TokenKind::None, TokenKind::None)? }
-        };
-
-        Ok(FuncType { Pos: begin_end!(begin, self) })
+            _ => {
+                Ok(FuncType {
+                    Params: params,
+                    Result: Type::None,
+                    Pos: begin_end!(self, begin),
+                })
+            }
+        }
     }
 
     pub fn ExpectStructType(&mut self) -> Result<StructType, ParserError> {
@@ -202,7 +212,7 @@ impl Parser {
 
         let fieldList = self.ExpectFieldList(TokenKind::SEMICOLON, TokenKind::RBRACE)?;
 
-        Ok(StructType { Pos: begin_end!(begin, self), Name: name, FieldList: fieldList })
+        Ok(StructType { Pos: begin_end!(self, begin), Name: name, FieldList: fieldList })
     }
 
     pub fn ExpectTraitType(&mut self) -> Result<TraitType, ParserError> {
@@ -213,25 +223,93 @@ impl Parser {
         let name = self.ExpectIdent()?;
 
         Ok(TraitType {
-            Pos: begin_end!(begin, self),
             Name: name,
+            Pos: begin_end!(self, begin),
         })
     }
 
-    pub fn ExpectFuncDecl(&mut self) -> Result<FuncDecl, ParserError> {
-        def_rule! {
-            self,
-            FuncDecl,
-            Name: ExpectIdent,
-            Type: ExpectFuncType,
+    pub fn ExpectImportDecl(&mut self) -> Result<ImportDecl, ParserError> {
+        let begin = self.GetPos();
+
+        self.MatchTerm(TokenKind::IMPORT)?;
+        match self.Token.Kind {
+            TokenKind::Ident => {
+                Ok(ImportDecl {
+                    Alias: Some(self.ExpectIdent()?),
+                    Canonical: self.MatchTerm(TokenKind::String)?,
+                    Pos: begin_end!(self, begin),
+                })
+            }
+            TokenKind::String => {
+                Ok(ImportDecl {
+                    Alias: None,
+                    Canonical: self.MatchTerm(TokenKind::String)?,
+                    Pos: begin_end!(self, begin),
+                })
+            }
+            _ => {
+                Err(ParserError::UnexpectedNodeError(UnexpectedNodeError {
+                    Want: Node::TokenKind(TokenKind::String),
+                    Have: Node::Token(self.Token.clone()),
+                }))
+            }
         }
     }
 
+    pub fn ExpectFuncDecl(&mut self) -> Result<FuncDecl, ParserError> {
+        let begin = self.GetPos();
+
+        self.MatchTerm(TokenKind::FUNC)?;
+
+        let name = self.ExpectIdent()?;
+
+        self.MatchTerm(TokenKind::LPAREN)?;
+
+        let params = match self.Token.Kind {
+            TokenKind::RPAREN => {
+                FieldList { Pos: begin_end!(self, self.GetPos()), FieldList: vec![] }
+            }
+            _ => {
+                self.ExpectFieldList(TokenKind::COMMA, TokenKind::RPAREN)?
+            }
+        };
+
+        let typ = match self.Token.Kind {
+            TokenKind::PASS => {
+                self.Scan()?;
+                FuncType {
+                    Pos: begin_end!(self, begin),
+                    Params: params,
+                    Result: self.ExpectType()?,
+                }
+            }
+            _ => {
+                FuncType {
+                    Pos: begin_end!(self, begin),
+                    Params: params,
+                    Result: Type::None,
+                }
+            }
+        };
+
+        Ok(FuncDecl {
+            Name: name,
+            Type: typ,
+            Pos: begin_end!(self, begin.clone()),
+        })
+    }
+
     pub fn ExpectStmt(&mut self) -> Result<Stmt, ParserError> {
-        Ok()
+        Ok(Stmt::None) // TODO
     }
 
     pub fn ExpectStmtBlock(&mut self) -> Result<StmtBlock, ParserError> {
-        Ok(StmtBlock {})
+        let begin = self.GetPos();
+
+        Ok(StmtBlock {
+            StmtList: parse_list!(self, Stmt, ExpectStmt, TokenKind::SEMICOLON, TokenKind::None),
+            Expr: Expr::None, // TODO
+            Pos: begin_end!(self, begin),
+        })
     }
 }

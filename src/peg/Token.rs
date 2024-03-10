@@ -15,7 +15,6 @@ pub enum TokenKind {
     Operator,
 
     Int(IntFormat),
-    Float,
     String,
     Char,
 
@@ -25,49 +24,16 @@ pub enum TokenKind {
 
     // Keywords
 
-    BREAK,
-    CASE,
-    CHAN,
-    CONST,
-    CONTINUE,
-
-    DEFAULT,
-    DEFER,
-    ELSE,
-    FOR,
-
-    FUNC,
-    GO,
-    GOTO,
-    IF,
-    IMPORT,
-
-    TRAIT,
-    MAP,
-    PACKAGE,
-    RANGE,
-    RETURN,
-
-    MATCH,
-    STRUCT,
-    TYPE,
-    VAR,
-    VAL,
-
     LPAREN,
     LBRACK,
     LBRACE,
-
     RPAREN,
     RBRACK,
     RBRACE,
-
     COMMA,
     SEMICOLON,
     COLON,
     NEWLINE,
-
-    PASS,
 }
 
 pub struct Token {
@@ -88,23 +54,6 @@ impl Token {
 
 pub fn KeywordLookup() -> HashMap<String, TokenKind> {
     HashMap::from([
-        ("->".to_string(), TokenKind::PASS),
-        ("break".to_string(), TokenKind::BREAK),
-        ("const".to_string(), TokenKind::CONST),
-        ("continue".to_string(), TokenKind::CONTINUE),
-        ("else".to_string(), TokenKind::ELSE),
-        ("for".to_string(), TokenKind::FOR),
-        ("fun".to_string(), TokenKind::FUNC),
-        ("go".to_string(), TokenKind::GO),
-        ("if".to_string(), TokenKind::IF),
-        ("import".to_string(), TokenKind::IMPORT),
-        ("trait".to_string(), TokenKind::TRAIT),
-        ("return".to_string(), TokenKind::RETURN),
-        ("match".to_string(), TokenKind::MATCH),
-        ("struct".to_string(), TokenKind::STRUCT),
-        ("typedef".to_string(), TokenKind::TYPE),
-        ("mut".to_string(), TokenKind::VAR),
-        ("let".to_string(), TokenKind::VAL),
         ("(".to_string(), TokenKind::LPAREN),
         ("[".to_string(), TokenKind::LBRACK),
         ("{".to_string(), TokenKind::LBRACE),

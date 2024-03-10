@@ -4,9 +4,46 @@
 
 use std::fmt::{Display, Formatter};
 
-use crate::{def_ast, def_node};
 use crate::parser::Token::{Token, TokenKind};
 use crate::scanner::PosRange::PosRange;
+
+macro_rules! def_ast {
+    (
+        $(
+            $ast:ident {
+                $($name:ident: $typ:ty), *,
+            }
+        ), *
+    ) => {
+        $(
+            pub struct $ast {
+                pub Pos: PosRange,
+                $(
+                    pub $name: $typ,    
+                )*
+            }
+        )*
+    };
+}
+
+macro_rules! def_node {
+    (
+        $(
+            $node:ident {
+                $($typ:ident), *,
+            }
+        ), *
+    ) => {
+        $(
+            pub enum $node {
+                None,
+                $(
+                    $typ(Box<$typ>),
+                )*
+            }
+        )*
+    };
+}
 
 pub enum Node {
     None,
@@ -54,6 +91,7 @@ def_ast! {
 
     FuncType {
         Params: FieldList,
+        Result: Type,
     },
 
     StructType {
@@ -92,7 +130,7 @@ def_ast! {
     },
 
     ImportDecl {
-        Alias: Ident,
+        Alias: Option<Ident>,
         Canonical: Token,
     },
 
@@ -103,12 +141,12 @@ def_ast! {
 
     // Statement
 
-    StmtList {
-        StmtList: Vec<Stmt>,
-    },
-
     StmtBlock {
-        StmtList: StmtList,
+        StmtList: Vec<Stmt>,
         Expr: Expr,
     }
+}
+
+macro_rules! def_rule {
+    () => {};
 }

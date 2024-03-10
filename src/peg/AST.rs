@@ -2,7 +2,9 @@
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0
 // that can be found in the LICENSE file and https://mozilla.org/MPL/2.0/.
 
-#[macro_export]
+use crate::peg::Token::{Token, TokenKind};
+use crate::scanner::PosRange::PosRange;
+
 macro_rules! def_ast {
     (
         $(
@@ -22,22 +24,25 @@ macro_rules! def_ast {
     };
 }
 
-#[macro_export]
-macro_rules! def_node {
-    (
-        $(
-            $node:ident {
-                $($typ:ident), *,
-            }
-        ), *
-    ) => {
-        $(
-            pub enum $node {
-                None,
-                $(
-                    $typ(Box<$typ>),
-                )*
-            }
-        )*
-    };
+pub enum Node {
+    None,
+    Token(Token),
+    TokenKind(TokenKind),
+    Ident(Ident),
+    Rule(Rule),
+}
+
+def_ast! {
+    Ident  {
+        Token: Token,
+    },
+    
+    Pattern {
+        Elements: Vec<Box<Node>>,
+    },
+    
+    Rule {
+        Name: Ident,
+        Patterns: Vec<Pattern>,
+    }
 }

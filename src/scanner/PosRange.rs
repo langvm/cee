@@ -4,6 +4,7 @@
 
 use std::fmt;
 use std::fmt::Formatter;
+
 use crate::scanner::Position::Position;
 
 pub struct PosRange {
