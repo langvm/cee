@@ -12,7 +12,8 @@ pub mod BufferScanner;
 
 pub mod BasicToken;
 
-pub mod Scanner;
+pub mod BasicScanner;
 
 mod TestScanner;
+mod Diagnosis;
 

@@ -7,13 +7,13 @@ use std::collections::HashMap;
 use crate::cmp_enum_tag;
 use crate::peg::AST::{Ident, Node, Pattern, Rule};
 use crate::peg::Token::{KeywordLookup, Token, TokenKind};
+use crate::scanner::BasicScanner::{BasicScanner, BasicScannerError, NewBufferScanner};
 use crate::scanner::BasicToken::BasicTokenKind;
 use crate::scanner::Position::Position;
 use crate::scanner::PosRange::PosRange;
-use crate::scanner::Scanner::{NewBufferScanner, Scanner, ScannerError};
 
 pub struct PEGParser {
-    pub Scanner: Scanner,
+    pub Scanner: BasicScanner,
 
     pub ReachedEOF: bool,
     pub Token: Token,
@@ -24,7 +24,7 @@ pub struct PEGParser {
 }
 
 pub enum ParserError {
-    ScannerError(ScannerError),
+    ScannerError(BasicScannerError),
     UnexpectedNodeError(UnexpectedNodeError),
 }
 
@@ -35,7 +35,7 @@ pub struct UnexpectedNodeError {
 
 pub fn NewPEGParser(buffer: Vec<char>) -> PEGParser {
     PEGParser {
-        Scanner: Scanner {
+        Scanner: BasicScanner {
             BufferScanner: NewBufferScanner(buffer),
             Delimiters: vec!['(', ')', '[', ']', '{', '}', ',', ';', '/'],
             Whitespaces: vec![' ', '\t', '\r'],

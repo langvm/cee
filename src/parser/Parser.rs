@@ -2,58 +2,29 @@
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0
 // that can be found in the LICENSE file and https://mozilla.org/MPL/2.0/.
 
-use std::collections::HashMap;
-use std::fmt;
-use std::fmt::Formatter;
-
 use crate::parser::AST::{Expr, Field, FieldList, FuncDecl, FuncType, Ident, ImportDecl, Node, Stmt, StmtBlock, StructType, TraitType, Type};
-use crate::parser::Token::{KeywordLookup, Token, TokenKind};
-use crate::scanner::BasicToken::BasicTokenKind;
+use crate::parser::Diagnosis::{SyntaxError, UnexpectedNodeError};
+use crate::parser::Scanner::{NewScanner, Scanner};
+use crate::parser::Token::{Token, TokenKind};
+use crate::scanner::BasicScanner::BasicScannerError;
 use crate::scanner::Position::Position;
 use crate::scanner::PosRange::PosRange;
-use crate::scanner::Scanner::{NewBufferScanner, Scanner, ScannerError};
 use crate::tag_matches;
 
 pub enum ParserError {
-    ScannerError(ScannerError),
-    UnexpectedNodeError(UnexpectedNodeError),
-}
-
-pub struct UnexpectedNodeError {
-    pub Want: Node,
-    pub Have: Node,
-}
-
-impl fmt::Display for UnexpectedNodeError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "unexpected node: {} but have {}", self.Have, self.Want) }
+    ScannerError(BasicScannerError),
 }
 
 pub struct Parser {
     pub Scanner: Scanner,
 
-    pub KeywordLookup: HashMap<String, TokenKind>,
-
-    pub ReachedEOF: bool,
-    pub Token: Token,
-
-    pub CompleteSemicolon: bool,
+    pub SyntaxErrors: Vec<SyntaxError>,
 }
 
 pub fn NewParser(buffer: Vec<char>) -> Parser {
     Parser {
-        Scanner: Scanner {
-            BufferScanner: NewBufferScanner(buffer),
-            Delimiters: vec!['(', ')', '[', ']', '{', '}', ',', ';', '/'],
-            Whitespaces: vec![' ', '\t', '\r'],
-        },
-        KeywordLookup: KeywordLookup(),
-        ReachedEOF: false,
-        Token: Token {
-            Pos: PosRange { Begin: Position { Offset: 0, Line: 0, Column: 0 }, End: Position { Offset: 0, Line: 0, Column: 0 } },
-            Kind: TokenKind::None,
-            Literal: vec![],
-        },
-        CompleteSemicolon: false,
+        Scanner: NewScanner(buffer),
+        SyntaxErrors: vec![],
     }
 }
 
@@ -85,53 +56,30 @@ macro_rules! parse_list {
 }
 
 impl Parser {
-    pub fn GetPos(&self) -> Position { self.Scanner.GetPos() }
+    pub fn GetPos(mut self) -> Position { self.Scanner.GetPos() }
 
-    pub fn Scan(&mut self) -> Result<(), ParserError> {
-        let bt = match self.Scanner.Scan() {
-            Ok(token) => { token }
-            Err(err) => { return Err(ParserError::ScannerError(err)); }
-        };
+    pub fn Scan(&mut self) -> Result<Token, ParserError> {}
 
-        macro_rules! lookup {
-            ($e: ident) => {{
-                let s = bt.Literal.iter().collect::<String>();
-                if self.KeywordLookup.contains_key(&s) {
-                    self.KeywordLookup.get(&s).unwrap().clone()
-                } else {
-                    TokenKind::$e
-                }
-            }};
-        }
+    pub fn Report(&mut self, e: SyntaxError) {
+        self.SyntaxErrors.push(e);
+    }
 
-        let kind = match bt.Kind {
-            BasicTokenKind::Ident | BasicTokenKind::Operator | BasicTokenKind::Delimiter => { lookup!(Operator) }
-            BasicTokenKind::Int(format) => { TokenKind::Int(format) }
-            BasicTokenKind::Float => { TokenKind::Float } // TODO
-            BasicTokenKind::String => { TokenKind::String }
-            BasicTokenKind::Char => { TokenKind::Char }
-            BasicTokenKind::Comment => { return self.Scan(); }
-            _ => { panic!("impossible") }
-        };
-
-        self.Token = Token {
-            Pos: bt.Pos,
-            Kind: kind,
-            Literal: bt.Literal,
-        };
-
+    pub fn ReportAndRecover(&mut self, e: SyntaxError) -> Result<(), ParserError> {
+        self.SyntaxErrors.push(e);
+        while match self.Token.Kind {
+            TokenKind::SEMICOLON | TokenKind::RBRACE => { false }
+            _ => { true }
+        } { self.Scan()?; }
         Ok(())
     }
 
     pub fn MatchTerm(&mut self, term: TokenKind) -> Result<Token, ParserError> {
         let token = self.Token.clone();
-        match &token.Kind {
-            it if tag_matches!(it, &term) => { Err(ParserError::UnexpectedNodeError(UnexpectedNodeError { Want: Node::TokenKind(term), Have: Node::Token(self.Token.clone()) })) }
-            _ => {
-                self.Scan()?;
-                Ok(token)
-            }
+        self.Scan()?;
+        if tag_matches!(&token.Kind, &term) {
+            self.Report(SyntaxError::UnexpectedNode(UnexpectedNodeError { Want: Node::TokenKind(term), Have: Node::TokenKind(token.Kind) }));
         }
+        Ok(token)
     }
 
     pub fn ExpectIdent(&mut self) -> Result<Ident, ParserError> {
@@ -143,7 +91,8 @@ impl Parser {
                 Ok(Ident { Pos: token.Pos, Token: token.clone() })
             }
             _ => {
-                Err(ParserError::UnexpectedNodeError(UnexpectedNodeError { Want: Node::TokenKind(TokenKind::Ident), Have: Node::Token(self.Token.clone()) }))
+                self.ReportAndRecover(SyntaxError::UnexpectedNode(UnexpectedNodeError { Want: Node::TokenKind(TokenKind::Ident), Have: Node::Token(self.Token.clone()) }))?;
+                Ok(Ident {})
             }
         }
     }
@@ -299,8 +248,14 @@ impl Parser {
         })
     }
 
+    pub fn ExpectExpr(&mut self) -> Result<Expr, ParserError> {}
+
     pub fn ExpectStmt(&mut self) -> Result<Stmt, ParserError> {
-        Ok(Stmt::None) // TODO
+        let expr = self.ExpectExpr()?;
+
+        match self.Token.Kind {}
+
+        Ok(Stmt {})
     }
 
     pub fn ExpectStmtBlock(&mut self) -> Result<StmtBlock, ParserError> {
