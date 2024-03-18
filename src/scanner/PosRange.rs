@@ -12,8 +12,17 @@ pub struct PosRange {
     pub End: Position,
 }
 
-impl PosRange {
-    pub fn clone(&self) -> PosRange {
+impl Default for PosRange {
+    fn default() -> Self {
+        PosRange {
+            Begin: Default::default(),
+            End: Default::default(),
+        }
+    }
+}
+
+impl Clone for PosRange {
+    fn clone(&self) -> PosRange {
         PosRange {
             Begin: self.Begin.clone(),
             End: self.End.clone(),

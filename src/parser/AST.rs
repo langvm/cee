@@ -10,18 +10,24 @@ use crate::scanner::PosRange::PosRange;
 macro_rules! def_ast {
     (
         $(
-            $ast:ident {
-                $($name:ident: $typ:ty), *,
-            }
+        $ast:ident ($fmt:expr, $($e:ident), *) {
+            $($name:ident: $typ:ty), *,
+        }
         ), *
     ) => {
         $(
-            pub struct $ast {
-                pub Pos: PosRange,
-                $(
-                    pub $name: $typ,    
-                )*
+        #[derive(Default)]
+        pub struct $ast { 
+            pub Pos: PosRange,
+            $(
+            pub $name: $typ,    
+            )*
+        }
+        impl Display for $ast {
+            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+                write!(f, $fmt, $(self.$e)*)
             }
+        }
         )*
     };
 }
@@ -29,20 +35,29 @@ macro_rules! def_ast {
 macro_rules! def_node {
     (
         $(
-            $node:ident {
-                $($typ:ident), *,
-            }
+        $node:ident {
+            $($typ:ident), *,
+        }
         ), *
     ) => {
         $(
-            pub enum $node {
-                None,
-                $(
-                    $typ(Box<$typ>),
-                )*
+        pub enum $node {
+            None,
+            $(
+            $typ(Box<$typ>),
+            )*
+        }
+        impl Default for $node {
+            fn default() -> Self {
+                $node::None
             }
+        }
         )*
     };
+}
+
+pub struct List<T> {
+    Lists: Vec<T>,
 }
 
 pub enum Node {
@@ -72,7 +87,8 @@ def_node! {
 
     Stmt {
         StmtBlock,
-        Expr,
+        CallExpr,
+        UnwrapExpr,
     }
 }
 
@@ -83,65 +99,65 @@ impl Display for Node {
 }
 
 def_ast! {
-    Ident  {
+    Ident ("{}", Token) {
         Token: Token,
     },
 
     // Type
 
-    FuncType {
+    FuncType ("fun ({}) {}", Params, Result) {
         Params: FieldList,
         Result: Type,
     },
 
-    StructType {
+    StructType ("fun ({}) {}", Name, FieldList) {
         Name: Ident,
         FieldList: FieldList,
     },
 
-    TraitType {
+    TraitType ("trait {}", Name){
         Name: Ident,
     },
 
     // Expression
 
-    ExprList {
+    ExprList ("fun ({})", ExprList){
         ExprList: Vec<Expr>,
     },
 
-    CallExpr {
+    CallExpr ("fun ({}) {}", Params, Result){
         Callee: Expr,
         Params: ExprList,
     },
 
-    UnwrapExpr {
+    UnwrapExpr("fun ({}) {}", Params, Result) {
         Expr: Expr,
     },
 
     // Declaration
 
-    Field  {
+    Field ("fun ({}) {}", Params, Result) {
         Name: Ident,
         Type: Type,
     },
 
-    FieldList  {
+    FieldList ("fun ({}) {}", Params, Result) {
         FieldList: Vec<Field>,
     },
 
-    ImportDecl {
+    ImportDecl("fun ({}) {}", Params, Result) {
         Alias: Option<Ident>,
         Canonical: Token,
     },
 
-    FuncDecl {
+    FuncDecl ("fun ({}) {}", Params, Result){
         Name: Ident,
         Type: FuncType,
     },
 
     // Statement
 
-    StmtBlock {
+    StmtBlock("fun ({}) {}", Params, Result) {
         StmtList: Vec<Stmt>,
         Expr: Expr,
     }

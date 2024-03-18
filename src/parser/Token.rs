@@ -3,6 +3,7 @@
 // that can be found in the LICENSE file and https://mozilla.org/MPL/2.0/.
 
 use std::collections::HashMap;
+use std::fmt::{Display, Formatter};
 
 use crate::scanner::BasicToken::IntFormat;
 use crate::scanner::PosRange::PosRange;
@@ -76,8 +77,24 @@ pub struct Token {
     pub Literal: Vec<char>,
 }
 
-impl Token {
-    pub fn clone(&self) -> Token {
+impl Display for Token {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {}", self.Pos, self.Literal.iter().collect())
+    }
+}
+
+impl Default for Token {
+    fn default() -> Self {
+        Token {
+            Pos: Default::default(),
+            Kind: TokenKind::None,
+            Literal: vec![],
+        }
+    }
+}
+
+impl Clone for Token {
+    fn clone(&self) -> Token {
         Token {
             Pos: self.Pos.clone(),
             Kind: self.Kind.clone(),
@@ -88,7 +105,7 @@ impl Token {
 
 pub fn KeywordLookup() -> HashMap<String, TokenKind> {
     HashMap::from([
-        ("->".to_string(), TokenKind::PASS),
+        ("<-".to_string(), TokenKind::PASS),
         ("break".to_string(), TokenKind::BREAK),
         ("const".to_string(), TokenKind::CONST),
         ("continue".to_string(), TokenKind::CONTINUE),
@@ -102,7 +119,6 @@ pub fn KeywordLookup() -> HashMap<String, TokenKind> {
         ("return".to_string(), TokenKind::RETURN),
         ("match".to_string(), TokenKind::MATCH),
         ("struct".to_string(), TokenKind::STRUCT),
-        ("typedef".to_string(), TokenKind::TYPE),
         ("mut".to_string(), TokenKind::VAR),
         ("let".to_string(), TokenKind::VAL),
         ("(".to_string(), TokenKind::LPAREN),

@@ -12,6 +12,16 @@ pub struct Position {
     pub Column: usize,
 }
 
+impl Default for Position {
+    fn default() -> Self {
+        Position {
+            Offset: 0,
+            Line: 0,
+            Column: 0,
+        }
+    }
+}
+
 impl Position {
     pub fn clone(&self) -> Position {
         return Position {
