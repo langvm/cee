@@ -4,5 +4,33 @@
 
 pub mod Parser;
 pub mod Token;
-mod AST;
-mod Diagnosis;
+pub mod AST;
+pub mod Diagnosis;
+mod TestParser;
+
+#[macro_export]
+macro_rules! def_tokens {
+    ($table_name:ident: $typ_name:ident=> { $($name:ident $literal:expr), * }) => {
+        #[derive(Clone)]
+        pub enum $typ_name {
+            None,
+            Ident,
+            Operator,
+            Int(crate::scanner::BasicToken::IntFormat),
+            Float,
+            String, 
+            Char,
+            $($name,)* 
+        }
+        
+        impl Default for $typ_name {
+            fn default() -> Self { Self::None }
+        }
+
+        pub static $table_name: std::collections::HashMap<String, $typ_name> = std::collections::HashMap::from([
+            $(
+            ($literal.to_string(), $typ_name::$name),
+            )*
+        ]);
+    };
+}

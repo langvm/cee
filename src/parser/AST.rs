@@ -2,7 +2,7 @@
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0
 // that can be found in the LICENSE file and https://mozilla.org/MPL/2.0/.
 
-use std::fmt::{Display, Formatter};
+use std::fmt::Display;
 
 use crate::parser::Token::{Token, TokenKind};
 use crate::scanner::PosRange::PosRange;
@@ -24,8 +24,8 @@ macro_rules! def_ast {
             )*
         }
         impl Display for $ast {
-            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-                write!(f, $fmt, $(self.$e)*)
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, $fmt, $(self.$e,)*)
             }
         }
         )*
@@ -52,12 +52,33 @@ macro_rules! def_node {
                 $node::None
             }
         }
+        impl Display for $node {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                match self {
+                    $node::None => { write!(f, "") }
+                    $(
+                    $node::$typ(e) => { write!(f, "{}", e) }
+                    )*
+                }
+            }
+        }
         )*
     };
 }
 
+#[derive(Default)]
 pub struct List<T> {
-    Lists: Vec<T>,
+    pub Pos: PosRange,
+    pub Elements: Vec<T>,
+}
+
+impl<T> Display for List<T> where T: Display {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for e in &self.Elements {
+            write!(f, "{}", e)?;
+        }
+        Ok(())
+    }
 }
 
 pub enum Node {
@@ -69,6 +90,21 @@ pub enum Node {
     Type(Type),
 }
 
+impl Default for Node { fn default() -> Self { Node::None } }
+
+impl Display for Node {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Node::None => { f.write_fmt(::core::format_args!("")) }
+            Node::Token(e) => { f.write_fmt(::core::format_args!("{}", e)) }
+            Node::TokenKind(e) => { f.write_fmt(::core::format_args!("{}", e)) }
+            Node::Ident(e) => { f.write_fmt(::core::format_args!("{}", e)) }
+            Node::Expr(e) => { f.write_fmt(::core::format_args!("{}", e)) }
+            Node::Type(e) => { f.write_fmt(::core::format_args!("{}", e)) }
+        }
+    }
+}
+
 def_node! {
     Type {
         FuncType,
@@ -77,6 +113,7 @@ def_node! {
     },
 
     Expr {
+        LiteralValue,
         CallExpr,
         UnwrapExpr,
     },
@@ -92,27 +129,25 @@ def_node! {
     }
 }
 
-impl Display for Node {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
-    }
-}
-
 def_ast! {
     Ident ("{}", Token) {
+        Token: Token,
+    },
+    
+    LiteralValue ("{}", Token) {
         Token: Token,
     },
 
     // Type
 
     FuncType ("fun ({}) {}", Params, Result) {
-        Params: FieldList,
+        Params: List<Field>,
         Result: Type,
     },
 
     StructType ("fun ({}) {}", Name, FieldList) {
         Name: Ident,
-        FieldList: FieldList,
+        FieldList: List<Field>,
     },
 
     TraitType ("trait {}", Name){
@@ -121,48 +156,36 @@ def_ast! {
 
     // Expression
 
-    ExprList ("fun ({})", ExprList){
-        ExprList: Vec<Expr>,
-    },
-
-    CallExpr ("fun ({}) {}", Params, Result){
+    CallExpr ("fun ({}) {}", Callee, Params){
         Callee: Expr,
-        Params: ExprList,
+        Params: List<Expr>,
     },
 
-    UnwrapExpr("fun ({}) {}", Params, Result) {
+    UnwrapExpr("{}?", Expr) {
         Expr: Expr,
     },
 
     // Declaration
 
-    Field ("fun ({}) {}", Params, Result) {
+    Field ("fun ({}) {}", Name, Type) {
         Name: Ident,
         Type: Type,
     },
 
-    FieldList ("fun ({}) {}", Params, Result) {
-        FieldList: Vec<Field>,
-    },
-
-    ImportDecl("fun ({}) {}", Params, Result) {
-        Alias: Option<Ident>,
+    ImportDecl("fun ({}) {}", Alias, Canonical) {
+        Alias: Ident,
         Canonical: Token,
     },
 
-    FuncDecl ("fun ({}) {}", Params, Result){
+    FuncDecl ("fun ({}) {}", Name, Type){
         Name: Ident,
         Type: FuncType,
     },
 
     // Statement
 
-    StmtBlock("fun ({}) {}", Params, Result) {
-        StmtList: Vec<Stmt>,
+    StmtBlock("fun ({}) {}", StmtList, Expr) {
+        StmtList: List<Stmt>,
         Expr: Expr,
     }
-}
-
-macro_rules! def_rule {
-    () => {};
 }

@@ -4,15 +4,17 @@
 
 use std::collections::HashMap;
 
-use crate::parser::AST::{Expr, Field, FieldList, FuncDecl, FuncType, Ident, ImportDecl, Node, Stmt, StmtBlock, StructType, TraitType, Type};
+use crate::parser::AST::{Expr, Field, FuncDecl, FuncType, Ident, ImportDecl, List, LiteralValue, Node, Stmt, StmtBlock, StructType, TraitType, Type};
 use crate::parser::Diagnosis::{SyntaxError, UnexpectedNodeError};
-use crate::parser::Token::{KeywordLookup, Token, TokenKind};
-use crate::scanner::BasicScanner::{BasicScanner, BasicScannerError, NewBufferScanner};
+use crate::parser::Token::{keywordLookup, Token, TokenKind};
+use crate::scanner::BasicScanner::{BasicScanner, BasicScannerError};
 use crate::scanner::BasicToken::BasicTokenKind;
+use crate::scanner::BufferScanner::BufferScanner;
 use crate::scanner::Position::Position;
 use crate::scanner::PosRange::PosRange;
 use crate::tag_matches;
 
+#[derive(Debug)]
 pub enum ParserError {
     ScannerError(BasicScannerError),
 }
@@ -20,7 +22,7 @@ pub enum ParserError {
 pub struct Parser {
     pub Scanner: BasicScanner,
 
-    pub KeywordLookup: HashMap<String, TokenKind>,
+    pub KeywordLookup: &'static HashMap<String, TokenKind>,
 
     pub ReachedEOF: bool,
     pub Token: Token,
@@ -30,25 +32,8 @@ pub struct Parser {
     pub QuoteStack: Vec<TokenKind>,
 
     pub SyntaxErrors: Vec<SyntaxError>,
-}
 
-pub fn NewParser(buffer: Vec<char>) -> Parser {
-    Parser {
-        Scanner: BasicScanner {
-            BufferScanner: NewBufferScanner(buffer),
-            Delimiters: vec!['(', ')', '[', ']', '{', '}', ',', ';', '/'],
-            Whitespaces: vec![' ', '\t', '\r'],
-        },
-        KeywordLookup: KeywordLookup(),
-        ReachedEOF: false,
-        Token: Token::default(),
-
-        CompleteSemicolon: false,
-
-        QuoteStack: vec![],
-
-        SyntaxErrors: vec![],
-    }
+    pub NamespaceIdents: HashMap<String, ImportDecl>,
 }
 
 macro_rules! begin_end {
@@ -58,10 +43,17 @@ macro_rules! begin_end {
 }
 
 macro_rules! parse_list {
-    ($self: expr, $unit: ty, $parser: ident, $delimiter: expr, $term: expr) => { if true {
-        let mut list: Vec<$unit> = vec![];
+    (
+        $self: expr,
+        $ast_node: ty,
+        $parser_func: ident,
+        $delimiter: expr,
+        $term: expr) => { if true {
+        let begin = $self.GetPos();
+
+        let mut list: Vec<$ast_node> = vec![];
         loop {
-            list.push($self.$parser()?);
+            list.push($self.$parser_func()?);
             match &$self.Token.Kind {
                 it if tag_matches!(it, &$delimiter) => {
                     $self.Scan()?;
@@ -74,11 +66,35 @@ macro_rules! parse_list {
                 _ => {}
             }
         }
-        list
+        List {
+            Pos: PosRange { Begin: begin, End: $self.GetPos() },
+            Elements: list,
+        }
     } else { panic!() }};
 }
 
 impl Parser {
+    pub fn new(buffer: Vec<char>) -> Parser {
+        Parser {
+            Scanner: BasicScanner {
+                BufferScanner: BufferScanner::new(buffer),
+                Delimiters: vec!['(', ')', '[', ']', '{', '}', ',', ';', '/'],
+                Whitespaces: vec![' ', '\t', '\r'],
+            },
+            KeywordLookup: &keywordLookup,
+            ReachedEOF: false,
+            Token: Token::default(),
+
+            CompleteSemicolon: false,
+
+            QuoteStack: vec![],
+
+            SyntaxErrors: vec![],
+
+            NamespaceIdents: HashMap::new(),
+        }
+    }
+
     pub fn GetPos(&self) -> Position { self.Scanner.GetPos() }
 
     pub fn Scan(&mut self) -> Result<(), ParserError> {
@@ -87,6 +103,7 @@ impl Parser {
             Err(err) => { return Err(ParserError::ScannerError(err)); }
         };
 
+        // Semicolon complete: replace newline to semicolon
         match self.Token.Kind {
             TokenKind::NEWLINE => {
                 if self.CompleteSemicolon {
@@ -104,28 +121,33 @@ impl Parser {
 
         self.CompleteSemicolon = false;
 
-        macro_rules! lookup {
-            ($e: ident) => {{
-                let s = bt.Literal.iter().collect::<String>();
-                if self.KeywordLookup.contains_key(&s) {
-                    self.KeywordLookup.get(&s).unwrap().clone()
-                } else {
-                    TokenKind::$e
-                }
-            }};
-        }
+        let literal = bt.Literal.iter().collect::<String>();
 
+        // Determines whether BasicToken is a keyword, operator or delimiter.
         let kind = match bt.Kind {
-            BasicTokenKind::Ident | BasicTokenKind::Operator | BasicTokenKind::Delimiter => {
-                let k = lookup!(Operator);
-                match k {
+            BasicTokenKind::Ident => {
+                if keywordLookup.contains_key(&literal) {
+                    keywordLookup.get(&literal).unwrap().clone()
+                } else {
                     TokenKind::Ident
-                    | TokenKind::RPAREN
-                    | TokenKind::RBRACE
-                    | TokenKind::RETURN => { self.CompleteSemicolon = true }
+                }
+            }
+            BasicTokenKind::Operator => {
+                if keywordLookup.contains_key(&literal) {
+                    keywordLookup.get(&literal).unwrap().clone()
+                } else {
+                    TokenKind::Operator
+                }
+            }
+            BasicTokenKind::Delimiter => {
+                let kind = keywordLookup.get(&literal).unwrap().clone(); // Panic means design error.
+                match kind {
+                    TokenKind::LPAREN => { self.QuoteStack.push(TokenKind::RPAREN) }
+                    TokenKind::LBRACE => { self.QuoteStack.push(TokenKind::RBRACE) }
+                    TokenKind::LBRACK => { self.QuoteStack.push(TokenKind::RBRACK) }
                     _ => {}
                 }
-                k
+                kind
             }
             BasicTokenKind::Int(format) => { TokenKind::Int(format) }
             BasicTokenKind::Float => { TokenKind::Float } // TODO
@@ -133,13 +155,6 @@ impl Parser {
             BasicTokenKind::Char => { TokenKind::Char }
             BasicTokenKind::Comment => { return self.Scan(); }
         };
-
-        match kind {
-            TokenKind::LPAREN => { self.QuoteStack.push(TokenKind::RPAREN) }
-            TokenKind::LBRACE => { self.QuoteStack.push(TokenKind::RBRACE) }
-            TokenKind::LBRACK => { self.QuoteStack.push(TokenKind::RBRACK) }
-            _ => {}
-        }
 
         self.Token = Token {
             Pos: bt.Pos,
@@ -185,7 +200,7 @@ impl Parser {
         match token.Kind {
             TokenKind::Ident => {
                 self.Scan()?;
-                Ok(Ident { Pos: token.Pos, Token: token.clone() })
+                Ok(Ident { Pos: token.Pos.clone(), Token: token.clone() })
             }
             _ => {
                 self.ReportAndRecover(SyntaxError::UnexpectedNode(UnexpectedNodeError { Want: Node::TokenKind(TokenKind::Ident), Have: Node::Token(self.Token.clone()) }))?;
@@ -204,13 +219,8 @@ impl Parser {
         })
     }
 
-    pub fn ExpectFieldList(&mut self, delimiter: TokenKind, term: TokenKind) -> Result<FieldList, ParserError> {
-        let begin = self.GetPos();
-
-        Ok(FieldList {
-            FieldList: parse_list!(self, Field, ExpectField, delimiter, term),
-            Pos: begin_end!(self, begin),
-        })
+    pub fn ExpectFieldList(&mut self, delimiter: TokenKind, term: TokenKind) -> Result<List<Field>, ParserError> {
+        Ok(parse_list!(self, Field, ExpectField, delimiter, term))
     }
 
     pub fn ExpectType(&mut self) -> Result<Type, ParserError> {
@@ -255,11 +265,11 @@ impl Parser {
         self.MatchTerm(TokenKind::STRUCT)?;
         self.MatchTerm(TokenKind::LBRACE)?;
 
-        let name = self.ExpectIdent()?;
-
-        let fieldList = self.ExpectFieldList(TokenKind::SEMICOLON, TokenKind::RBRACE)?;
-
-        Ok(StructType { Pos: begin_end!(self, begin), Name: name, FieldList: fieldList })
+        Ok(StructType {
+            Name: self.ExpectIdent()?,
+            FieldList: parse_list!(self, Field, ExpectField, TokenKind::SEMICOLON, TokenKind::RBRACE),
+            Pos: begin_end!(self, begin),
+        })
     }
 
     pub fn ExpectTraitType(&mut self) -> Result<TraitType, ParserError> {
@@ -279,28 +289,10 @@ impl Parser {
         let begin = self.GetPos();
 
         self.MatchTerm(TokenKind::IMPORT)?;
-        Ok(match self.Token.Kind {
-            TokenKind::Ident => {
-                ImportDecl {
-                    Alias: Some(self.ExpectIdent()?),
-                    Canonical: self.MatchTerm(TokenKind::String)?,
-                    Pos: begin_end!(self, begin),
-                }
-            }
-            TokenKind::String => {
-                ImportDecl {
-                    Alias: None,
-                    Canonical: self.MatchTerm(TokenKind::String)?,
-                    Pos: begin_end!(self, begin),
-                }
-            }
-            _ => {
-                self.ReportAndRecover(SyntaxError::UnexpectedNode(UnexpectedNodeError {
-                    Want: Node::TokenKind(TokenKind::String),
-                    Have: Node::Token(self.Token.clone()),
-                }))?;
-                ImportDecl::default()
-            }
+        Ok(ImportDecl {
+            Alias: self.ExpectIdent()?,
+            Canonical: self.MatchTerm(TokenKind::String)?,
+            Pos: begin_end!(self, begin),
         })
     }
 
@@ -315,10 +307,10 @@ impl Parser {
 
         let params = match self.Token.Kind {
             TokenKind::RPAREN => {
-                FieldList { Pos: begin_end!(self, self.GetPos()), FieldList: vec![] }
+                List { Pos: begin_end!(self, self.GetPos()), Elements: vec![] }
             }
             _ => {
-                self.ExpectFieldList(TokenKind::COMMA, TokenKind::RPAREN)?
+                parse_list!(self, Field, ExpectField, TokenKind::COMMA, TokenKind::RPAREN)
             }
         };
 
@@ -326,14 +318,14 @@ impl Parser {
             TokenKind::PASS => {
                 self.Scan()?;
                 FuncType {
-                    Pos: begin_end!(self, begin),
                     Params: params,
                     Result: self.ExpectType()?,
+                    Pos: begin_end!(self, begin.clone()),
                 }
             }
             _ => {
                 FuncType {
-                    Pos: begin_end!(self, begin),
+                    Pos: begin_end!(self, begin.clone()),
                     Params: params,
                     Result: Type::None,
                 }
@@ -343,12 +335,19 @@ impl Parser {
         Ok(FuncDecl {
             Name: name,
             Type: typ,
-            Pos: begin_end!(self, begin.clone()),
+            Pos: begin_end!(self, begin),
         })
     }
 
     pub fn ExpectExpr(&mut self) -> Result<Expr, ParserError> {
         Ok(match self.Token.Kind {
+            TokenKind::Ident => { todo!() }
+            TokenKind::Int(_) | TokenKind::Float | TokenKind::Char | TokenKind::String => {
+                Expr::LiteralValue(Box::new(LiteralValue {
+                    Pos: self.Token.Pos.clone(),
+                    Token: self.Token.clone(),
+                }))
+            }
             _ => { todo!() }
         })
     }

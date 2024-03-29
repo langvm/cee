@@ -4,10 +4,22 @@
 
 #![allow(nonstandard_style)]
 
-mod parser;
-mod scanner;
-mod types;
-mod peg;
-mod match_tag;
-mod util_match;
-mod printer;
+pub mod parser;
+pub mod scanner;
+pub mod types;
+
+#[macro_export]
+macro_rules! tag_matches {
+    ($e:expr, $p:expr) => {
+        std::mem::discriminant($e) == std::mem::discriminant($p)
+    };
+}
+
+#[macro_export]
+macro_rules! no_display {
+    ($typ:ty) => {
+        impl std::fmt::Display for $typ {
+            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result { Ok(()) }
+        }
+    };
+}

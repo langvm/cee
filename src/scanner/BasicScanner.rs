@@ -3,33 +3,27 @@
 // that can be found in the LICENSE file and https://mozilla.org/MPL/2.0/.
 
 use std::char::from_u32;
+use std::fmt::{Debug, Formatter};
 
 use crate::scanner::BasicToken::{BasicToken, BasicTokenKind, IntFormat};
 use crate::scanner::BufferScanner::{BufferScanner, EOFError};
 use crate::scanner::Position::Position;
 use crate::scanner::PosRange::PosRange;
-use crate::string_vec;
 
+#[derive(Debug)]
 pub enum BasicScannerError {
     EOF(EOFError),
     BadFormat(BadFormatError),
-}
-
-impl BasicScannerError {
-    pub fn Error(self) -> String {
-        match self {
-            BasicScannerError::EOF(err) => { err.Error() }
-            BasicScannerError::BadFormat(err) => { err.Error() }
-        }
-    }
 }
 
 pub struct BadFormatError {
     pub PosRange: PosRange,
 }
 
-impl BadFormatError {
-    pub fn Error(&self) -> String { format!("{}: format error", self.PosRange.to_string()) }
+impl Debug for BadFormatError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: format error", self.PosRange)
+    }
 }
 
 pub struct BasicScanner {
@@ -39,14 +33,16 @@ pub struct BasicScanner {
     pub Whitespaces: Vec<char>,
 }
 
-pub fn NewBufferScanner(buffer: Vec<char>) -> BufferScanner {
-    BufferScanner {
-        Pos: Position {
-            Offset: 0,
-            Line: 0,
-            Column: 0,
-        },
-        Buffer: buffer,
+impl BufferScanner {
+    pub fn new(buffer: Vec<char>) -> BufferScanner {
+        BufferScanner {
+            Pos: Position {
+                Offset: 0,
+                Line: 0,
+                Column: 0,
+            },
+            Buffer: buffer,
+        }
     }
 }
 
@@ -265,7 +261,7 @@ impl BasicScanner {
             seq.push(self.Move()?);
         }
 
-        let ch = match u32::from_str_radix(&string_vec!(seq), 16) {
+        let ch = match u32::from_str_radix(&String::from_iter(seq), 16) {
             Ok(ch) => {
                 match from_u32(ch) {
                     None => {
