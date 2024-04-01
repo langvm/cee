@@ -2,15 +2,10 @@
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0
 // that can be found in the LICENSE file and https://mozilla.org/MPL/2.0/.
 
-pub use pos::*;
-pub use scanner::*;
-pub use token::*;
+pub struct FieldType {}
 
-pub mod pos;
+pub struct FuncType {}
 
-pub mod scanner;
+pub struct StructType {}
 
-pub mod token;
-
-mod scanner_test;
-
+pub struct TraitType {}

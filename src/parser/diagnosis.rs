@@ -5,7 +5,7 @@
 use std::fmt;
 use std::fmt::Formatter;
 
-use crate::parser::AST::Node;
+use crate::ast::Node;
 
 pub enum SyntaxError {
     UnexpectedNode(UnexpectedNodeError)

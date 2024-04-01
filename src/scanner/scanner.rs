@@ -5,10 +5,65 @@
 use std::char::from_u32;
 use std::fmt::{Debug, Formatter};
 
-use crate::scanner::BasicToken::{BasicToken, BasicTokenKind, IntFormat};
-use crate::scanner::BufferScanner::{BufferScanner, EOFError};
-use crate::scanner::Position::Position;
-use crate::scanner::PosRange::PosRange;
+use err_rs::*;
+
+use crate::scanner::*;
+
+pub struct BufferScanner {
+    pub Pos: Position,
+    pub Buffer: Vec<char>,
+}
+
+pub struct EOFError {
+    pub Pos: Position,
+}
+
+impl Debug for EOFError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: end of file", self.Pos)
+    }
+}
+
+impl BufferScanner {
+    pub fn GetChar(&self) -> Result<char, EOFError> {
+        if self.Pos.Offset == self.Buffer.len() {
+            return Err(EOFError {
+                Pos: self.Pos.clone(),
+            });
+        }
+
+        Ok(self.Buffer[self.Pos.Offset])
+    }
+
+    pub fn Move(&mut self) -> Result<char, EOFError> {
+        let ch = self.GetChar()?;
+
+        if ch == '\n' {
+            self.Pos.Line += 1;
+            self.Pos.Column = 0;
+        } else {
+            self.Pos.Column += 1;
+        }
+        self.Pos.Offset += 1;
+
+        Ok(ch)
+    }
+
+    pub fn GotoNextLine(&mut self) -> Result<(), EOFError> {
+        loop {
+            match self.Move() {
+                Ok(ch) => {
+                    if ch == '\n' {
+                        break;
+                    }
+                }
+                Err(err) => { return Err(err); }
+            }
+        }
+
+        Ok(())
+    }
+}
 
 #[derive(Debug)]
 pub enum BasicScannerError {
@@ -53,26 +108,11 @@ macro_rules! from_to {
 }
 
 impl BasicScanner {
-    pub fn GetChar(&self) -> Result<char, BasicScannerError> {
-        match self.BufferScanner.GetChar() {
-            Ok(ch) => { Ok(ch) }
-            Err(_) => { Err(BasicScannerError::EOF(EOFError { Pos: self.GetPos() })) }
-        }
-    }
+    pub fn GetChar(&self) -> Result<char, BasicScannerError> { Ok(wrap_result!(BasicScannerError::EOF, self.BufferScanner.GetChar())) }
 
-    pub fn Move(&mut self) -> Result<char, BasicScannerError> {
-        match self.BufferScanner.Move() {
-            Ok(ch) => { Ok(ch) }
-            Err(_) => { Err(BasicScannerError::EOF(EOFError { Pos: self.GetPos() })) }
-        }
-    }
+    pub fn Move(&mut self) -> Result<char, BasicScannerError> { Ok(wrap_result!(BasicScannerError::EOF, self.BufferScanner.Move())) }
 
-    pub fn GotoNextLine(&mut self) -> Result<(), BasicScannerError> {
-        match self.BufferScanner.GotoNextLine() {
-            Ok(_) => { Ok(()) }
-            Err(err) => { Err(BasicScannerError::EOF(err)) }
-        }
-    }
+    pub fn GotoNextLine(&mut self) -> Result<(), BasicScannerError> { Ok(wrap_result!(BasicScannerError::EOF, self.BufferScanner.GotoNextLine())) }
 
     pub fn GetPos(&self) -> Position { self.BufferScanner.Pos.clone() }
 

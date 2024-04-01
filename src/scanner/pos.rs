@@ -12,3 +12,13 @@ pub struct Position {
 impl std::fmt::Display for Position {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{:x}:{}:{}", self.Offset, self.Line, self.Column) }
 }
+
+#[derive(Clone, Default)]
+pub struct PosRange {
+    pub Begin: Position,
+    pub End: Position,
+}
+
+impl std::fmt::Display for PosRange {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{} -> {}", self.Begin, self.End) }
+}

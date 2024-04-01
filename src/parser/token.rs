@@ -5,7 +5,7 @@
 use std::fmt::{Display, Formatter};
 
 use crate::def_tokens;
-use crate::scanner::PosRange::PosRange;
+use crate::scanner::*;
 
 def_tokens! {
     keywordLookup: TokenKind => {
@@ -22,7 +22,7 @@ def_tokens! {
         RETURN      "return",
         MATCH       "match",
         STRUCT      "struct",
-        VAR         "mut",
+        MUT         "mut",
         VAL         "let",
 
         LPAREN      "(",

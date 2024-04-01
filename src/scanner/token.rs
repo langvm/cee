@@ -4,7 +4,7 @@
 
 use std::fmt::Display;
 
-use crate::scanner::PosRange::PosRange;
+use crate::scanner::*;
 
 #[derive(Clone)]
 pub enum BasicTokenKind {
@@ -21,7 +21,7 @@ pub enum BasicTokenKind {
     Comment,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum IntFormat {
     BIN = 2,
     OCT = 8,

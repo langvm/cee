@@ -6,7 +6,8 @@
 
 pub mod parser;
 pub mod scanner;
-pub mod types;
+pub mod ir;
+pub mod ast;
 
 #[macro_export]
 macro_rules! tag_matches {

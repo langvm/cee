@@ -2,9 +2,7 @@
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0
 // that can be found in the LICENSE file and https://mozilla.org/MPL/2.0/.
 
-use crate::scanner::BasicScanner::BasicScanner;
-use crate::scanner::BufferScanner::BufferScanner;
-use crate::scanner::Position::Position;
+use crate::scanner::*;
 
 /*
 
@@ -34,7 +32,7 @@ fn TestScanner() {
                 println!("{}\n{}", tok.Pos.to_string(), tok.Literal.iter().collect::<String>())
             }
             Err(err) => {
-                println!("{}", err.Error());
+                println!("{:?}", err);
                 break;
             }
         };
