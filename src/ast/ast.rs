@@ -2,9 +2,9 @@
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0
 // that can be found in the LICENSE file and https://mozilla.org/MPL/2.0/.
 
-use std::fmt::{Display, Formatter, Pointer};
+use std::fmt;
 
-use crate::parser::{Token, TokenKind};
+use crate::ast::*;
 use crate::scanner::*;
 
 macro_rules! def_ast {
@@ -23,7 +23,7 @@ macro_rules! def_ast {
             pub $name: $typ,    
             )*
         }
-        impl Display for $ast {
+        impl std::fmt::Display for $ast {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 write!(f, $fmt, $(self.$e,)*)
             }
@@ -52,7 +52,7 @@ macro_rules! def_node {
                 $node::None
             }
         }
-        impl Display for $node {
+        impl std::fmt::Display for $node {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 match self {
                     $node::None => { write!(f, "") }
@@ -70,14 +70,16 @@ macro_rules! def_node {
 pub struct List<T> {
     pub Pos: PosRange,
     pub Elements: Vec<T>,
+    pub Delimiter: TokenKind,
+    pub Term: TokenKind,
 }
 
-impl<T> Display for List<T> where T: Display {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<T> fmt::Display for List<T> where T: fmt::Display {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for e in &self.Elements {
-            write!(f, "{}", e)?;
+            write!(f, "{}{}", e, self.Delimiter)?;
         }
-        Ok(())
+        write!(f, "{}", self.Term)
     }
 }
 
@@ -92,8 +94,8 @@ pub enum Node {
 
 impl Default for Node { fn default() -> Self { Node::None } }
 
-impl Display for Node {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for Node {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Node::None => { f.write_fmt(::core::format_args!("")) }
             Node::Token(e) => { f.write_fmt(::core::format_args!("{}", e)) }
@@ -110,8 +112,8 @@ pub enum Optional<T> {
     None,
 }
 
-impl<T> Display for Optional<T> where T: Display {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl<T> fmt::Display for Optional<T> where T: fmt::Display {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Optional::Some(v) => { write!(f, "{}", v) }
             Optional::None => { Ok(()) }
@@ -150,6 +152,7 @@ def_ast! {
 
 def_node! {
     Type {
+        Ident,
         FuncType,
         StructType,
         TraitType,
@@ -182,8 +185,8 @@ def_node! {
 }
 
 def_ast! {
-    Field ("{}: {}", Name, Type) {
-        Name: Ident,
+    Field ("{}: {}", Names, Type) {
+        Names: List<Ident>,
         Type: Type,
     },
 
@@ -200,12 +203,10 @@ def_ast! {
     MutDecl ("mut {}: {}", Name, Type) {
         Name: Ident,
         Type: Type,
-    }
-}
+    },
 
-def_ast! {
-    StmtBlock("fun ({}) {}", StmtList, Expr) {
+    StmtBlock("{{{}}}", StmtList) {
         StmtList: List<Stmt>,
-        Expr: Expr,
+        Type: Type,
     }
 }

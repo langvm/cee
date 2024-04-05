@@ -21,7 +21,7 @@ pub enum BasicTokenKind {
     Comment,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum IntFormat {
     BIN = 2,
     OCT = 8,
@@ -33,14 +33,4 @@ pub struct BasicToken {
     pub Pos: PosRange,
     pub Kind: BasicTokenKind,
     pub Literal: Vec<char>,
-}
-
-impl BasicToken {
-    pub fn clone(&self) -> BasicToken {
-        BasicToken {
-            Pos: self.Pos.clone(),
-            Kind: self.Kind.clone(),
-            Literal: self.Literal.clone(),
-        }
-    }
 }

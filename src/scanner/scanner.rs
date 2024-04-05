@@ -28,7 +28,7 @@ impl BufferScanner {
     pub fn GetChar(&self) -> Result<char, EOFError> {
         if self.Pos.Offset == self.Buffer.len() {
             return Err(EOFError {
-                Pos: self.Pos.clone(),
+                Pos: self.Pos,
             });
         }
 
@@ -114,7 +114,7 @@ impl BasicScanner {
 
     pub fn GotoNextLine(&mut self) -> Result<(), BasicScannerError> { Ok(wrap_result!(BasicScannerError::EOF, self.BufferScanner.GotoNextLine())) }
 
-    pub fn GetPos(&self) -> Position { self.BufferScanner.Pos.clone() }
+    pub fn GetPos(&self) -> Position { self.BufferScanner.Pos }
 
     pub fn SkipWhitespaces(&mut self) -> Result<(), BasicScannerError> {
         while self.Whitespaces.contains(&self.GetChar()?) {
@@ -130,7 +130,7 @@ impl BasicScanner {
         self.GotoNextLine()?;
 
         Ok(BasicToken {
-            Pos: PosRange { Begin: begin.clone(), End: self.GetPos() },
+            Pos: PosRange { Begin: begin, End: self.GetPos() },
             Kind: BasicTokenKind::Comment,
             Literal: from_to!(begin, self),
         })
@@ -149,7 +149,7 @@ impl BasicScanner {
 
 
         Ok(BasicToken {
-            Pos: PosRange { Begin: begin.clone(), End: self.GetPos() },
+            Pos: PosRange { Begin: begin, End: self.GetPos() },
             Kind: BasicTokenKind::Comment,
             Literal: from_to!(begin, self),
         })
@@ -182,7 +182,7 @@ impl BasicScanner {
         }
 
         Ok(BasicToken {
-            Pos: PosRange { Begin: begin.clone(), End: self.GetPos() },
+            Pos: PosRange { Begin: begin, End: self.GetPos() },
             Kind: BasicTokenKind::Ident,
             Literal: from_to!(begin, self),
         })
@@ -201,7 +201,7 @@ impl BasicScanner {
         }
 
         Ok(BasicToken {
-            Pos: PosRange { Begin: begin.clone(), End: self.GetPos() },
+            Pos: PosRange { Begin: begin, End: self.GetPos() },
             Kind: BasicTokenKind::Int(IntFormat::HEX),
             Literal: from_to!(begin, self),
         })
@@ -221,7 +221,7 @@ impl BasicScanner {
 
 
         Ok(BasicToken {
-            Pos: PosRange { Begin: begin.clone(), End: self.GetPos() },
+            Pos: PosRange { Begin: begin, End: self.GetPos() },
             Kind: BasicTokenKind::Int(IntFormat::DEC),
             Literal: from_to!(begin, self),
         })
@@ -241,7 +241,7 @@ impl BasicScanner {
 
 
         Ok(BasicToken {
-            Pos: PosRange { Begin: begin.clone(), End: self.GetPos() },
+            Pos: PosRange { Begin: begin, End: self.GetPos() },
             Kind: BasicTokenKind::Int(IntFormat::OCT),
             Literal: from_to!(begin, self),
         })
@@ -261,7 +261,7 @@ impl BasicScanner {
 
 
         Ok(BasicToken {
-            Pos: PosRange { Begin: begin.clone(), End: self.GetPos() },
+            Pos: PosRange { Begin: begin, End: self.GetPos() },
             Kind: BasicTokenKind::Int(IntFormat::BIN),
             Literal: from_to!(begin, self),
         })
@@ -287,7 +287,7 @@ impl BasicScanner {
                 }
             }
             _ => {
-                self.BufferScanner.Pos = begin.clone();
+                self.BufferScanner.Pos = begin;
                 self.ScanDec()
             }
         }
@@ -391,7 +391,7 @@ impl BasicScanner {
         }
 
         Ok(BasicToken {
-            Pos: PosRange { Begin: begin.clone(), End: self.GetPos() },
+            Pos: PosRange { Begin: begin, End: self.GetPos() },
             Kind: BasicTokenKind::Operator,
             Literal: from_to!(begin, self),
         })

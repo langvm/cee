@@ -3,6 +3,7 @@
 // that can be found in the LICENSE file and https://mozilla.org/MPL/2.0/.
 
 #![allow(nonstandard_style)]
+#![allow(warnings)]
 
 pub mod parser;
 pub mod scanner;
