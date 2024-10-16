@@ -20,7 +20,7 @@ macro_rules! def_ast {
         pub struct $ast { 
             pub Pos: PosRange,
             $(
-            pub $name: $typ,    
+            pub $name: $typ,
             )*
         }
         impl std::fmt::Display for $ast {
@@ -79,7 +79,7 @@ impl<T> fmt::Display for List<T> where T: fmt::Display {
         for e in &self.Elements {
             write!(f, "{}{}", e, self.Delimiter)?;
         }
-        write!(f, "{}", self.Term)
+        Ok(())
     }
 }
 
@@ -97,19 +97,23 @@ impl Default for Node { fn default() -> Self { Node::None } }
 impl fmt::Display for Node {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Node::None => { f.write_fmt(::core::format_args!("")) }
-            Node::Token(e) => { f.write_fmt(::core::format_args!("{}", e)) }
-            Node::TokenKind(e) => { f.write_fmt(::core::format_args!("{:?}", e)) }
-            Node::Ident(e) => { f.write_fmt(::core::format_args!("{}", e)) }
-            Node::Expr(e) => { f.write_fmt(::core::format_args!("{}", e)) }
-            Node::Type(e) => { f.write_fmt(::core::format_args!("{}", e)) }
+            Node::None => { Ok(()) }
+            Node::Token(e) => { write!(f, "{}", e) }
+            Node::TokenKind(e) => { write!(f, "{:?}", e) }
+            Node::Ident(e) => { write!(f, "{}", e) }
+            Node::Expr(e) => { write!(f, "{}", e) }
+            Node::Type(e) => { write!(f, "{}", e) }
         }
     }
 }
 
 pub enum Optional<T> {
-    Some(T),
     None,
+    Some(T),
+}
+
+impl<T> Default for Optional<T> {
+    fn default() -> Self { Optional::None }
 }
 
 impl<T> fmt::Display for Optional<T> where T: fmt::Display {
@@ -165,13 +169,14 @@ def_ast! {
         Result: Type,
     },
 
-    StructType ("fun ({}) {}", Name, FieldList) {
+    StructType ("struct {} {{{}}}", Name, FieldList) {
         Name: Ident,
         FieldList: List<Field>,
     },
 
     TraitType ("trait {}", Name) {
         Name: Ident,
+        FuncList: List<FuncDecl>,
     }
 }
 
@@ -185,19 +190,20 @@ def_node! {
 }
 
 def_ast! {
-    Field ("{}: {}", Names, Type) {
+    Field ("{} {}", Names, Type) {
         Names: List<Ident>,
         Type: Type,
     },
 
-    ImportDecl("import ({}) {}", Alias, Canonical) {
+    ImportDecl("import {} {}", Alias, Canonical) {
         Alias: Ident,
         Canonical: Token,
     },
 
-    FuncDecl ("fun ({}) {}", Name, Type) {
-        Name: Ident,
+    FuncDecl ("fun {} {} {}", Name, Type, Stmt) {
+        Name: Optional<Ident>,
         Type: FuncType,
+        Stmt: Optional<StmtBlock>,
     },
 
     MutDecl ("mut {}: {}", Name, Type) {

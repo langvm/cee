@@ -16,6 +16,6 @@ pub struct UnexpectedNodeError {
     pub Have: Node,
 }
 
-impl fmt::Display for UnexpectedNodeError {
+impl fmt::Debug for UnexpectedNodeError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "unexpected node: {} but have {}", self.Have, self.Want) }
 }

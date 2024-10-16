@@ -2,7 +2,7 @@
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0
 // that can be found in the LICENSE file and https://mozilla.org/MPL/2.0/.
 
-use crate::{define_parsers, tag_matches};
+use crate::{def_parser, tag_matches};
 use crate::ast::*;
 use crate::parser::*;
 
@@ -48,9 +48,9 @@ impl<T> List<T> where T: AstNodeParserTrait<T> {
     }
 }
 
-define_parsers! {
+def_parser! {
     Ident, p => {
-        Ok(match p.Token.Kind {
+        match p.Token.Kind {
             TokenKind::Ident => {
                 if p.NamespaceIdents.contains_key(&p.Token.Literal) {}
                 Ident { Pos: p.Token.Pos, Token: p.Token.clone() }
@@ -59,28 +59,30 @@ define_parsers! {
                 p.ReportAndRecover(SyntaxError::UnexpectedNode(UnexpectedNodeError { Want: Default::default(), Have: Default::default() }))?;
                 Ident::default()
             }
-        })
+        }
     },
     
     Field, p => {
         let begin = p.GetPos();
         
-        Ok(Field {
+        Field {
             Names: List::Expect(p, TokenKind::COMMA, TokenKind::None)?,
             Type: Type::Expect(p)?,
             Pos: range![begin, p],
-        })
+        }
     },
 
     Type, p => {
-        Ok(match p.Token.Kind {
+        match p.Token.Kind {
+            TokenKind::Ident => {  }
             TokenKind::STRUCT => { Type::StructType(Box::new(StructType::Expect(p)?)) }
             TokenKind::TRAIT => { Type::TraitType(Box::new(TraitType::Expect(p)?)) }
+            TokenKind::FUNC => {  }
             _ => {
                 p.ReportAndRecover(SyntaxError::UnexpectedNode(UnexpectedNodeError { Want: todo!(), Have: todo!() }))?;
                 Type::None
             }
-        })
+        }
     },
 
     FuncType, p => {
@@ -90,7 +92,7 @@ define_parsers! {
 
         let params = List::Expect(p,TokenKind::COMMA, TokenKind::RPAREN)?;
 
-        Ok(match p.Token.Kind {
+        match p.Token.Kind {
             TokenKind::PASS => {
                 FuncType {
                     Params: params,
@@ -105,7 +107,7 @@ define_parsers! {
                     Pos: range![begin, p],
                 }
             }
-        })
+        }
     },
 
     StructType, p => {
@@ -113,11 +115,11 @@ define_parsers! {
 
         match_terms![p, TokenKind::STRUCT, TokenKind::LBRACE];
 
-        Ok(StructType {
+        StructType {
             Name: Ident::Expect(p)?,
             FieldList: List::Expect(p, TokenKind::SEMICOLON, TokenKind::RBRACE)?,
             Pos: range![begin, p],
-        })
+        }
     },
 
     TraitType, p => {
@@ -127,24 +129,24 @@ define_parsers! {
 
         let name = Ident::Expect(p)?;
 
-        Ok(TraitType {
+        TraitType {
             Name: name,
             Pos: range![begin, p],
-        })
+        }
     },
     
     ImportDecl, p => {
         let begin = p.GetPos();
 
         p.MatchTerm(TokenKind::IMPORT)?;
-        Ok(ImportDecl {
+        ImportDecl {
             Alias: Ident::Expect(p)?,
-            Canonical: p.MatchTerm(TokenKind::String)?,
+            Canonical: p.MatchTerm(TokenKind::String)?.clone(),
             Pos: range![begin, p],
-        })
+        }
     },
     
-    FuncDecl, p =>{
+    FuncDecl, p => {
         let begin = p.GetPos();
 
         p.MatchTerm(TokenKind::FUNC)?;
@@ -180,15 +182,16 @@ define_parsers! {
             }
         };
 
-        Ok(FuncDecl {
-            Name: name,
+        FuncDecl {
+            Name: Optional::Some(name),
             Type: typ,
+            Stmt: Optional::None,
             Pos: range![begin, p],
-        })
+        }
     },
     
     Expr, p => {
-        Ok(match p.Token.Kind {
+        match p.Token.Kind {
             TokenKind::Ident => { todo!() }
             TokenKind::Int(_) | TokenKind::Float | TokenKind::Char | TokenKind::String => {
                 Expr::LiteralValue(Box::new(LiteralValue {
@@ -197,13 +200,13 @@ define_parsers! {
                 }))
             }
             _ => { todo!() }
-        })
+        }
     },
     
     Stmt, p => {
         let expr = Expr::Expect(p)?;
 
-        Ok(match p.Token.Kind {
+        match p.Token.Kind {
             TokenKind::MUT => {
                 Stmt::MutDecl(Box::from(MutDecl::Expect(p)?))
             }
@@ -213,7 +216,7 @@ define_parsers! {
             _ => {
                 Stmt::Expr(Box::from(Expr::Expect(p)?))
             }
-        })
+        }
     },
     
     MutDecl, p => {
@@ -221,20 +224,20 @@ define_parsers! {
 
         p.MatchTerm(TokenKind::MUT)?;
 
-        Ok(MutDecl {
+        MutDecl {
             Name: Ident::Expect(p)?,
             Type: Type::Expect(p)?,
             Pos: range![begin, p],
-        })
+        }
     },
     
     StmtBlock, p => {
         let begin = p.GetPos();
 
-        Ok(StmtBlock {
+        StmtBlock {
             StmtList: List::Expect(p, TokenKind::SEMICOLON, TokenKind::None)?,
             Type: Type::None, // TODO
             Pos: range![begin, p],
-        })
+        }
     }
 }

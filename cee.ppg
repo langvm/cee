@@ -1,0 +1,22 @@
+
+Field := $name:Ident, $type:Type
+
+Type := {
+    Ident => Ident;
+    STRUCT => {};
+    TRAIT => {};
+    _ => {};
+};
+
+FuncRawType := LPAREN, ($params:Field, COMMA, RPAREN), RPAREN, {
+    ARROW => _, $result:Type;
+}
+
+FuncType := FUNC, $type:FuncRawType
+
+FuncDecl := FUNC, $name:Ident, $type:FuncRawType
+
+FuncDef := $decl:FuncDecl, $block:StmtBlock
+
+StmtBlock := $expr:Expr
+

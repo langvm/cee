@@ -63,7 +63,7 @@ impl Parser {
 
     pub fn GetPos(&self) -> Position { self.Scanner.GetPos() }
 
-    pub fn Scan(&mut self) -> Result<(), ParserError> {
+    pub fn Scan(&mut self) -> Result<&ast::Token, ParserError> {
         let bt = wrap_result!(ParserError::ScannerError, self.Scanner.Scan());
 
         // Semicolon complete: replace newline to semicolon
@@ -76,7 +76,7 @@ impl Parser {
                         Kind: ast::TokenKind::SEMICOLON,
                         Literal: String::from(";"),
                     };
-                    ok!(());
+                    ok!(&self.Token);
                 }
             }
             _ => {}
@@ -123,7 +123,7 @@ impl Parser {
             Literal: bt.Literal.iter().collect(),
         };
 
-        Ok(())
+        Ok(&self.Token)
     }
 
     pub fn Report(&mut self, e: SyntaxError) {
@@ -142,20 +142,17 @@ impl Parser {
         Ok(())
     }
 
-    pub fn MatchTerm(&mut self, term: ast::TokenKind) -> Result<ast::Token, ParserError> {
-        let token = self.Token.clone();
-        self.Scan()?;
-        Ok(if tag_matches!(&token.Kind, &term) {
-            self.Report(SyntaxError::UnexpectedNode(UnexpectedNodeError { Want: ast::Node::TokenKind(term), Have: ast::Node::TokenKind(token.Kind) }));
-            ast::Token::default()
-        } else {
-            token
-        })
+    pub fn MatchTerm(&mut self, term: ast::TokenKind) -> Result<&ast::Token, ParserError> {
+        let tok = self.Scan()?;
+        if tag_matches!(&tok.Kind, &term) {
+            self.Report(SyntaxError::UnexpectedNode(UnexpectedNodeError { Want: ast::Node::TokenKind(term), Have: ast::Node::TokenKind(tok.Kind.clone()) }));
+        }
+        Ok(tok)
     }
 }
 
 #[macro_export]
-macro_rules! define_parsers {
+macro_rules! def_parser {
     (
         $(
         $ast_node:ty, $p:ident => $block:block
@@ -163,7 +160,7 @@ macro_rules! define_parsers {
     ) => {
         $(
         impl crate::parser::AstNodeParserTrait<$ast_node> for $ast_node {
-            fn Expect($p: &mut crate::parser::Parser) -> Result<$ast_node, ParserError> $block
+            fn Expect($p: &mut crate::parser::Parser) -> Result<$ast_node, ParserError> { Ok($block) }
         }
         )*
     };
